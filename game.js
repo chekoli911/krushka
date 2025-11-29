@@ -8,7 +8,8 @@ const CONFIG = {
     GRAVITY: 0.8,
     JUMP_STRENGTH_MIN: -15,
     JUMP_STRENGTH_MAX: -28,
-    JUMP_CHARGE_RATE: 0.015, // How fast jump power charges per frame (at 60fps, takes ~1.1 seconds to max)
+    JUMP_CHARGE_RATE: 0.02, // How fast jump power charges per frame (at 60fps, takes ~0.8 seconds to max)
+    JUMP_CHARGE_DIRECTION: 1, // 1 for increasing, -1 for decreasing
     GROUND_Y: 700,  // Ground position for vertical mode
     PLAYER_WIDTH: 35,
     PLAYER_HEIGHT: 45,
@@ -87,8 +88,8 @@ const GAME_STATE = {
 // ==================== PLAYER CLASS ====================
 class Player {
     constructor() {
-        // Center player horizontally in vertical mode
-        this.x = CONFIG.CANVAS_WIDTH / 2 - CONFIG.PLAYER_WIDTH / 2;
+        // Position player near left edge (mobile vertical mode)
+        this.x = 30; // Close to left edge
         this.y = CONFIG.GROUND_Y;
         this.width = CONFIG.PLAYER_WIDTH;
         this.height = CONFIG.PLAYER_HEIGHT;
@@ -98,6 +99,7 @@ class Player {
         this.image = null;
         this.jumpCharging = false;
         this.jumpChargePower = 0; // 0 to 1, where 1 is max jump
+        this.jumpChargeDirection = 1; // 1 for increasing, -1 for decreasing
         this.loadImage();
     }
 
@@ -114,15 +116,27 @@ class Player {
         if (this.onGround && !this.isJumping) {
             this.jumpCharging = true;
             this.jumpChargePower = 0;
+            this.jumpChargeDirection = 1; // Start increasing
         }
     }
 
     updateJumpCharge() {
         if (this.jumpCharging && this.onGround && !this.isJumping) {
-            this.jumpChargePower = Math.min(1, this.jumpChargePower + CONFIG.JUMP_CHARGE_RATE);
+            // Update charge power based on direction
+            this.jumpChargePower += CONFIG.JUMP_CHARGE_RATE * this.jumpChargeDirection;
+            
+            // Reverse direction when reaching limits
+            if (this.jumpChargePower >= 1) {
+                this.jumpChargePower = 1;
+                this.jumpChargeDirection = -1; // Start decreasing
+            } else if (this.jumpChargePower <= 0) {
+                this.jumpChargePower = 0;
+                this.jumpChargeDirection = 1; // Start increasing
+            }
         } else if (!this.jumpCharging) {
             // Reset charge if not charging
             this.jumpChargePower = 0;
+            this.jumpChargeDirection = 1;
         }
     }
 
@@ -142,10 +156,12 @@ class Player {
             this.onGround = false;
             this.jumpCharging = false;
             this.jumpChargePower = 0;
+            this.jumpChargeDirection = 1;
         } else if (this.jumpCharging) {
             // Cancel charging if not on ground
             this.jumpCharging = false;
             this.jumpChargePower = 0;
+            this.jumpChargeDirection = 1;
         }
     }
 
@@ -167,6 +183,7 @@ class Player {
             // Only reset if player is not charging
             if (!this.jumpCharging) {
                 this.jumpChargePower = 0;
+                this.jumpChargeDirection = 1;
             }
         }
     }
@@ -733,18 +750,18 @@ class Game {
     drawUI() {
         const levelConfig = LEVELS[this.currentLevel];
         
-        // Level indicator (top left, smaller for vertical)
+        // Level indicator (moved lower on mobile)
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = 'bold 16px monospace';
-        this.ctx.fillText(`Level: ${this.currentLevel + 1}/5`, 10, 25);
+        this.ctx.fillText(`Level: ${this.currentLevel + 1}/5`, 10, 60); // Moved down from 25 to 60
         this.ctx.font = '14px monospace';
-        this.ctx.fillText(levelConfig.name, 10, 45);
+        this.ctx.fillText(levelConfig.name, 10, 80); // Moved down from 45 to 80
 
-        // Score (top right, smaller for vertical)
+        // Score (moved lower on mobile)
         this.ctx.font = 'bold 16px monospace';
         const scoreText = `Score: ${this.score}`;
         const scoreWidth = this.ctx.measureText(scoreText).width;
-        this.ctx.fillText(scoreText, CONFIG.CANVAS_WIDTH - scoreWidth - 10, 25);
+        this.ctx.fillText(scoreText, CONFIG.CANVAS_WIDTH - scoreWidth - 10, 60); // Moved down from 25 to 60
 
         // Jump charge indicator (when charging) - centered at bottom
         if (this.player && this.player.jumpCharging && this.player.onGround) {
