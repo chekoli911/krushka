@@ -4,6 +4,11 @@
     box-sizing: border-box;
 }
 
+/* Force portrait orientation */
+@viewport {
+    orientation: portrait;
+}
+
 body {
     font-family: 'Courier New', monospace;
     background: #000;
@@ -21,6 +26,8 @@ body {
     position: fixed;
     width: 100%;
     height: 100%;
+    /* Prevent landscape orientation */
+    overflow-x: hidden;
 }
 
 #game-container {
@@ -30,17 +37,49 @@ body {
     justify-content: center;
     align-items: center;
     background: #000;
+    /* Force portrait */
+    max-width: 100vw;
+    max-height: 100vh;
 }
 
 #game-canvas {
     display: block;
-    max-width: 100%;
-    max-height: 100%;
-    width: 800px;
-    height: 450px;
+    width: 100vw;
+    height: 100vh;
+    max-width: 100vw;
+    max-height: 100vh;
     background: #000;
     image-rendering: pixelated;
     image-rendering: -moz-crisp-edges;
     image-rendering: crisp-edges;
+    /* Maintain aspect ratio */
+    object-fit: contain;
+}
+
+/* Portrait orientation message (hidden by default) */
+.orientation-message {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.9);
+    color: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    z-index: 10000;
+    font-size: 18px;
+}
+
+/* Show message in landscape */
+@media screen and (orientation: landscape) {
+    .orientation-message {
+        display: block;
+    }
+    
+    #game-canvas {
+        display: none;
+    }
 }
 

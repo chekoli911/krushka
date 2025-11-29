@@ -3,21 +3,21 @@
 
 // ==================== CONFIGURATION ====================
 const CONFIG = {
-    CANVAS_WIDTH: 800,
-    CANVAS_HEIGHT: 450,
+    CANVAS_WIDTH: 400,  // Vertical mode: narrow width
+    CANVAS_HEIGHT: 800, // Vertical mode: tall height
     GRAVITY: 0.8,
     JUMP_STRENGTH_MIN: -15,
     JUMP_STRENGTH_MAX: -28,
     JUMP_CHARGE_RATE: 0.015, // How fast jump power charges per frame (at 60fps, takes ~1.1 seconds to max)
-    GROUND_Y: 350,
-    PLAYER_WIDTH: 40,
-    PLAYER_HEIGHT: 50,
-    PLAYER_START_X: 100,
+    GROUND_Y: 700,  // Ground position for vertical mode
+    PLAYER_WIDTH: 35,
+    PLAYER_HEIGHT: 45,
+    PLAYER_START_X: 50,  // Position from left (will be adjusted for centering)
     BASE_SPEED: 3,
-    OBSTACLE_WIDTH: 40,
-    OBSTACLE_HEIGHT: 40,
-    PIT_WIDTH: 80,
-    PIT_HEIGHT: 100,
+    OBSTACLE_WIDTH: 35,
+    OBSTACLE_HEIGHT: 35,
+    PIT_WIDTH: 70,
+    PIT_HEIGHT: 90,
     GROUND_TEXTURE_SIZE: 20, // Size of ground texture pattern
 };
 
@@ -87,7 +87,8 @@ const GAME_STATE = {
 // ==================== PLAYER CLASS ====================
 class Player {
     constructor() {
-        this.x = CONFIG.PLAYER_START_X;
+        // Center player horizontally in vertical mode
+        this.x = CONFIG.CANVAS_WIDTH / 2 - CONFIG.PLAYER_WIDTH / 2;
         this.y = CONFIG.GROUND_Y;
         this.width = CONFIG.PLAYER_WIDTH;
         this.height = CONFIG.PLAYER_HEIGHT;
@@ -338,25 +339,31 @@ class Game {
                 return;
             }
             
+            // For vertical mode, use full screen
             const containerWidth = container.clientWidth || window.innerWidth;
             const containerHeight = container.clientHeight || window.innerHeight;
             
-            if (containerWidth === 0 || containerHeight === 0) {
-                console.warn('Container has zero size, using window dimensions');
-            }
-            
+            // Calculate scale to fit vertically (portrait mode)
             const scaleX = containerWidth / CONFIG.CANVAS_WIDTH;
             const scaleY = containerHeight / CONFIG.CANVAS_HEIGHT;
             const scale = Math.min(scaleX, scaleY) || 1;
             
             this.canvas.width = CONFIG.CANVAS_WIDTH;
             this.canvas.height = CONFIG.CANVAS_HEIGHT;
-            this.canvas.style.width = (CONFIG.CANVAS_WIDTH * scale) + 'px';
-            this.canvas.style.height = (CONFIG.CANVAS_HEIGHT * scale) + 'px';
+            
+            // Scale to fit screen while maintaining aspect ratio
+            const scaledWidth = CONFIG.CANVAS_WIDTH * scale;
+            const scaledHeight = CONFIG.CANVAS_HEIGHT * scale;
+            
+            this.canvas.style.width = scaledWidth + 'px';
+            this.canvas.style.height = scaledHeight + 'px';
         };
         
         resize();
         window.addEventListener('resize', resize);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(resize, 100); // Delay to allow orientation change
+        });
     }
 
     setupTelegram() {
@@ -726,22 +733,26 @@ class Game {
     drawUI() {
         const levelConfig = LEVELS[this.currentLevel];
         
-        // Level indicator
+        // Level indicator (top left, smaller for vertical)
         this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.font = 'bold 20px monospace';
-        this.ctx.fillText(`Level: ${this.currentLevel + 1}/5`, 10, 30);
-        this.ctx.fillText(levelConfig.name, 10, 55);
+        this.ctx.font = 'bold 16px monospace';
+        this.ctx.fillText(`Level: ${this.currentLevel + 1}/5`, 10, 25);
+        this.ctx.font = '14px monospace';
+        this.ctx.fillText(levelConfig.name, 10, 45);
 
-        // Score
-        this.ctx.fillText(`Score: ${this.score}`, CONFIG.CANVAS_WIDTH - 150, 30);
+        // Score (top right, smaller for vertical)
+        this.ctx.font = 'bold 16px monospace';
+        const scoreText = `Score: ${this.score}`;
+        const scoreWidth = this.ctx.measureText(scoreText).width;
+        this.ctx.fillText(scoreText, CONFIG.CANVAS_WIDTH - scoreWidth - 10, 25);
 
-        // Jump charge indicator (when charging)
+        // Jump charge indicator (when charging) - centered at bottom
         if (this.player && this.player.jumpCharging && this.player.onGround) {
             const chargePercent = this.player.jumpChargePower;
-            const barWidth = 200;
-            const barHeight = 20;
+            const barWidth = Math.min(300, CONFIG.CANVAS_WIDTH - 40); // Responsive width
+            const barHeight = 18;
             const barX = CONFIG.CANVAS_WIDTH / 2 - barWidth / 2;
-            const barY = CONFIG.CANVAS_HEIGHT - 60;
+            const barY = CONFIG.CANVAS_HEIGHT - 50;
 
             // Background
             this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -775,46 +786,48 @@ class Game {
         this.drawBackground();
         this.drawGround();
 
-        // Title with shadow for visibility
+        // Title with shadow for visibility (adjusted for vertical)
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
         
         // Title shadow
         this.ctx.fillStyle = '#000000';
-        this.ctx.font = 'bold 48px monospace';
-        this.ctx.fillText('Krushka', CONFIG.CANVAS_WIDTH / 2 + 2, CONFIG.CANVAS_HEIGHT / 2 - 60 + 2);
+        this.ctx.font = 'bold 36px monospace';
+        this.ctx.fillText('Krushka', CONFIG.CANVAS_WIDTH / 2 + 2, CONFIG.CANVAS_HEIGHT / 2 - 100 + 2);
         
         // Title
         this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.fillText('Krushka', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 60);
+        this.ctx.fillText('Krushka', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 100);
         
         // Subtitle
-        this.ctx.font = 'bold 24px monospace';
+        this.ctx.font = 'bold 20px monospace';
         this.ctx.fillStyle = '#000000';
-        this.ctx.fillText('Knight Rider', CONFIG.CANVAS_WIDTH / 2 + 1, CONFIG.CANVAS_HEIGHT / 2 - 20 + 1);
+        this.ctx.fillText('Knight Rider', CONFIG.CANVAS_WIDTH / 2 + 1, CONFIG.CANVAS_HEIGHT / 2 - 60 + 1);
         this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.fillText('Knight Rider', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 20);
+        this.ctx.fillText('Knight Rider', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 60);
 
-        // Instructions
-        this.ctx.font = '18px monospace';
+        // Instructions (smaller for vertical)
+        this.ctx.font = '14px monospace';
         this.ctx.fillStyle = '#000000';
-        this.ctx.fillText('Press SPACE or Click to Jump', CONFIG.CANVAS_WIDTH / 2 + 1, CONFIG.CANVAS_HEIGHT / 2 + 20 + 1);
+        this.ctx.fillText('Tap or Hold to Jump', CONFIG.CANVAS_WIDTH / 2 + 1, CONFIG.CANVAS_HEIGHT / 2 - 20 + 1);
         this.ctx.fillStyle = '#FFFF00';
-        this.ctx.fillText('Press SPACE or Click to Jump', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 20);
+        this.ctx.fillText('Tap or Hold to Jump', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 20);
         
         this.ctx.fillStyle = '#000000';
-        this.ctx.fillText('Avoid obstacles and complete 5 levels!', CONFIG.CANVAS_WIDTH / 2 + 1, CONFIG.CANVAS_HEIGHT / 2 + 50 + 1);
+        this.ctx.fillText('Avoid obstacles!', CONFIG.CANVAS_WIDTH / 2 + 1, CONFIG.CANVAS_HEIGHT / 2 + 10 + 1);
         this.ctx.fillStyle = '#FFFF00';
-        this.ctx.fillText('Avoid obstacles and complete 5 levels!', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 50);
+        this.ctx.fillText('Avoid obstacles!', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 10);
 
-        // Start button with border
+        // Start button with border (smaller for vertical)
+        const btnWidth = Math.min(250, CONFIG.CANVAS_WIDTH - 40);
+        const btnHeight = 45;
         this.ctx.fillStyle = '#000000';
-        this.ctx.fillRect(CONFIG.CANVAS_WIDTH / 2 - 105, CONFIG.CANVAS_HEIGHT / 2 + 75, 210, 60);
+        this.ctx.fillRect(CONFIG.CANVAS_WIDTH / 2 - btnWidth / 2 - 5, CONFIG.CANVAS_HEIGHT / 2 + 50, btnWidth + 10, btnHeight + 10);
         this.ctx.fillStyle = '#27AE60';
-        this.ctx.fillRect(CONFIG.CANVAS_WIDTH / 2 - 100, CONFIG.CANVAS_HEIGHT / 2 + 80, 200, 50);
+        this.ctx.fillRect(CONFIG.CANVAS_WIDTH / 2 - btnWidth / 2, CONFIG.CANVAS_HEIGHT / 2 + 55, btnWidth, btnHeight);
         this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.font = 'bold 24px monospace';
-        this.ctx.fillText('START GAME', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 110);
+        this.ctx.font = 'bold 18px monospace';
+        this.ctx.fillText('START GAME', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 80);
 
         this.ctx.textAlign = 'left';
         this.ctx.textBaseline = 'alphabetic';
@@ -825,14 +838,15 @@ class Game {
         this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
 
         this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.font = 'bold 36px monospace';
+        this.ctx.font = 'bold 28px monospace';
         this.ctx.textAlign = 'center';
         
         if (this.currentLevel < LEVELS.length - 1) {
-            this.ctx.fillText(`Level ${this.currentLevel + 1} Complete!`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 40);
-            this.ctx.font = '24px monospace';
-            this.ctx.fillText(`Score: ${this.score}`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2);
-            this.ctx.fillText('Click or Press SPACE for Next Level', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 40);
+            this.ctx.fillText(`Level ${this.currentLevel + 1} Complete!`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 60);
+            this.ctx.font = '20px monospace';
+            this.ctx.fillText(`Score: ${this.score}`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 20);
+            this.ctx.font = '16px monospace';
+            this.ctx.fillText('Tap for Next Level', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 20);
         }
 
         this.ctx.textAlign = 'left';
@@ -843,14 +857,15 @@ class Game {
         this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
 
         this.ctx.fillStyle = '#E74C3C';
-        this.ctx.font = 'bold 36px monospace';
+        this.ctx.font = 'bold 28px monospace';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText('Game Over!', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 40);
+        this.ctx.fillText('Game Over!', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 60);
         
         this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.font = '24px monospace';
-        this.ctx.fillText(`Final Score: ${this.score}`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2);
-        this.ctx.fillText('Click or Press SPACE to Restart', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 40);
+        this.ctx.font = '20px monospace';
+        this.ctx.fillText(`Final Score: ${this.score}`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 20);
+        this.ctx.font = '16px monospace';
+        this.ctx.fillText('Tap to Restart', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 20);
 
         this.ctx.textAlign = 'left';
     }
@@ -860,15 +875,17 @@ class Game {
         this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
 
         this.ctx.fillStyle = '#F39C12';
-        this.ctx.font = 'bold 36px monospace';
+        this.ctx.font = 'bold 28px monospace';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText('Congratulations!', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 60);
+        this.ctx.fillText('Congratulations!', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 80);
         
         this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.font = '24px monospace';
-        this.ctx.fillText('You finished all 5 levels!', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 20);
-        this.ctx.fillText(`Final Score: ${this.score}`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 20);
-        this.ctx.fillText('Click or Press SPACE to Restart', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 60);
+        this.ctx.font = '18px monospace';
+        this.ctx.fillText('You finished all 5 levels!', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 40);
+        this.ctx.font = '20px monospace';
+        this.ctx.fillText(`Final Score: ${this.score}`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2);
+        this.ctx.font = '16px monospace';
+        this.ctx.fillText('Tap to Restart', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 40);
 
         this.ctx.textAlign = 'left';
     }
@@ -914,6 +931,32 @@ class Game {
         this.animationId = requestAnimationFrame(() => this.gameLoop());
     }
 }
+
+// ==================== ORIENTATION LOCK ====================
+// Lock orientation to portrait
+function lockOrientation() {
+    if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('portrait').catch(() => {
+            // Lock failed, but continue anyway
+        });
+    } else if (screen.lockOrientation) {
+        screen.lockOrientation('portrait');
+    } else if (screen.mozLockOrientation) {
+        screen.mozLockOrientation('portrait');
+    } else if (screen.msLockOrientation) {
+        screen.msLockOrientation('portrait');
+    }
+}
+
+// Try to lock orientation on load
+window.addEventListener('DOMContentLoaded', () => {
+    lockOrientation();
+    
+    // Also try on orientation change
+    window.addEventListener('orientationchange', () => {
+        setTimeout(lockOrientation, 100);
+    });
+});
 
 // ==================== INITIALIZE GAME ====================
 window.addEventListener('DOMContentLoaded', () => {
