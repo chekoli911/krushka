@@ -68,8 +68,10 @@ const CONFIG = {
     PIT_WIDTH: isMobileDevice() ? 70 : 80,
     PIT_HEIGHT: isMobileDevice() ? 90 : 100,
     GROUND_TEXTURE_SIZE: 20, // Size of ground texture pattern
-    AI_JUMP_DISTANCE: 150, // Distance before obstacle to jump (AI)
-    AI_JUMP_CHARGE: 0.7, // AI jump charge power (0-1)
+    AI_JUMP_DISTANCE_PIT: 180, // Distance before pit to jump (AI) - need more distance for pits
+    AI_JUMP_DISTANCE_FIRE: 120, // Distance before fire to jump (AI) - less distance for fires
+    AI_JUMP_CHARGE_MIN: 0.4, // Minimum jump charge for AI
+    AI_JUMP_CHARGE_MAX: 0.9, // Maximum jump charge for AI
 };
 
 // ==================== LEVEL CONFIGURATIONS ====================
@@ -387,6 +389,7 @@ class Game {
         this.currentLevel = 0;
         this.score = 0;
         this.distance = 0;
+        this.lives = 10; // Player lives
         this.player = null;
         this.obstacles = [];
         this.lastSpawnTime = 0;
@@ -398,6 +401,7 @@ class Game {
         this.isMobile = isMobileDevice();
         this.demoTimer = null; // Timer for auto-demo
         this.lastInteractionTime = Date.now(); // Track last user interaction
+        this.lastObstacleX = -1000; // Track last obstacle position for spacing
         
         this.setupCanvas();
         this.setupTelegram();
@@ -678,33 +682,40 @@ class Game {
         this.currentLevel = 0;
         this.score = 0;
         this.distance = 0;
+        this.lives = 10; // Reset lives
         this.player = new Player();
         this.obstacles = [];
         this.lastSpawnTime = 0;
         this.frameCount = 0;
         this.demoMode = demoMode;
+        this.lastObstacleX = -1000; // Reset obstacle tracking
     }
 
     nextLevel() {
-        this.currentLevel++;
-        if (this.currentLevel >= LEVELS.length) {
-            if (this.demoMode) {
-                // In demo mode, loop levels
-                this.currentLevel = 0;
-                this.distance = 0;
-                this.obstacles = [];
-                this.lastSpawnTime = 0;
-                this.player = new Player();
-                this.state = GAME_STATE.PLAYING;
-            } else {
-                this.state = GAME_STATE.ALL_COMPLETE;
+        if (this.demoMode) {
+            // In demo mode, always loop levels
+            this.currentLevel++;
+            if (this.currentLevel >= LEVELS.length) {
+                this.currentLevel = 0; // Loop back to level 1
             }
-        } else {
             this.distance = 0;
             this.obstacles = [];
             this.lastSpawnTime = 0;
+            this.lastObstacleX = -1000;
             this.player = new Player();
             this.state = GAME_STATE.PLAYING;
+        } else {
+            this.currentLevel++;
+            if (this.currentLevel >= LEVELS.length) {
+                this.state = GAME_STATE.ALL_COMPLETE;
+            } else {
+                this.distance = 0;
+                this.obstacles = [];
+                this.lastSpawnTime = 0;
+                this.lastObstacleX = -1000;
+                this.player = new Player();
+                this.state = GAME_STATE.PLAYING;
+            }
         }
     }
 
@@ -712,9 +723,10 @@ class Game {
         this.distance = 0;
         this.obstacles = [];
         this.lastSpawnTime = 0;
+        this.lastObstacleX = -1000;
         this.player = new Player();
         this.state = GAME_STATE.PLAYING;
-        // Keep demo mode if it was active
+        // Keep demo mode and lives if it was active
     }
 
     restartGame() {
@@ -739,8 +751,74 @@ class Game {
     spawnObstacle() {
         const levelConfig = LEVELS[this.currentLevel];
         const x = CONFIG.CANVAS_WIDTH;
-        const type = Math.random() < 0.5 ? 'pit' : 'fire';
-        this.obstacles.push(new Obstacle(x, type, this.currentLevel));
+        
+        // Calculate minimum safe distance between obstacles
+        // Player max jump distance is approximately 250-300px
+        const minDistance = 280; // Minimum distance between obstacles (increased for safety)
+        const safeDistance = 320; // Safe distance for comfortable gameplay
+        
+        // Check if we can spawn obstacle (enough distance from last one)
+        const distanceFromLast = x - this.lastObstacleX;
+        if (distanceFromLast < minDistance) {
+            return; // Don't spawn if too close
+        }
+        
+        // Smart obstacle generation to avoid impossible combinations
+        let type;
+        const lastObstacle = this.obstacles.length > 0 ? this.obstacles[this.obstacles.length - 1] : null;
+        const secondLastObstacle = this.obstacles.length > 1 ? this.obstacles[this.obstacles.length - 2] : null;
+        const thirdLastObstacle = this.obstacles.length > 2 ? this.obstacles[this.obstacles.length - 3] : null;
+        
+        // Check for problematic patterns - prevent 3+ of same type in a row
+        if (lastObstacle && secondLastObstacle && thirdLastObstacle) {
+            // If last three were same type, force opposite
+            if (lastObstacle.type === 'pit' && secondLastObstacle.type === 'pit' && thirdLastObstacle.type === 'pit') {
+                type = 'fire'; // Force fire after 3 pits
+            } else if (lastObstacle.type === 'fire' && secondLastObstacle.type === 'fire' && thirdLastObstacle.type === 'fire') {
+                type = 'pit'; // Force pit after 3 fires
+            } else if (lastObstacle.type === 'pit' && secondLastObstacle.type === 'pit') {
+                type = 'fire'; // Avoid 3rd pit
+            } else if (lastObstacle.type === 'fire' && secondLastObstacle.type === 'fire') {
+                type = 'pit'; // Avoid 3rd fire
+            } else {
+                // Alternate pattern
+                type = lastObstacle.type === 'pit' ? 'fire' : 'pit';
+            }
+        }
+        // Check for problematic patterns with 2 obstacles
+        else if (lastObstacle && secondLastObstacle) {
+            // If last two were pits, next must be fire (avoid 3 pits in a row)
+            if (lastObstacle.type === 'pit' && secondLastObstacle.type === 'pit') {
+                type = 'fire';
+            }
+            // If last two were fires, next must be pit (avoid 3 fires in a row)
+            else if (lastObstacle.type === 'fire' && secondLastObstacle.type === 'fire') {
+                type = 'pit';
+            }
+            // Alternate pattern
+            else {
+                type = lastObstacle.type === 'pit' ? 'fire' : 'pit';
+            }
+        }
+        // If only one obstacle exists
+        else if (lastObstacle) {
+            // Prefer alternating pattern
+            type = lastObstacle.type === 'pit' ? 'fire' : 'pit';
+        }
+        // First obstacle - random
+        else {
+            type = Math.random() < 0.5 ? 'pit' : 'fire';
+        }
+        
+        // Ensure minimum distance between obstacles
+        if (distanceFromLast < safeDistance && lastObstacle) {
+            // If too close, skip this spawn
+            return;
+        }
+        
+        const obstacle = new Obstacle(x, type, this.currentLevel);
+        this.obstacles.push(obstacle);
+        this.lastObstacleX = x + (type === 'pit' ? CONFIG.PIT_WIDTH : CONFIG.OBSTACLE_WIDTH);
     }
 
     checkCollisions() {
@@ -756,7 +834,7 @@ class Game {
                 
                 if (isOverPit && playerBottomY >= CONFIG.GROUND_Y) {
                     // Player is over pit and on/below ground level - fell into pit
-                    this.state = GAME_STATE.GAME_OVER;
+                    this.loseLife();
                     return true;
                 }
             } else {
@@ -769,13 +847,71 @@ class Game {
                     playerBounds.y + playerBounds.height > obstacleBounds.y) {
                     
                     // Collision detected
-                    this.state = GAME_STATE.GAME_OVER;
+                    this.loseLife();
                     return true;
                 }
             }
         }
         
         return false;
+    }
+    
+    loseLife() {
+        this.lives--;
+        
+        if (this.lives <= 0) {
+            // No lives left - restart from level 1
+            this.currentLevel = 0;
+            this.lives = 10;
+            this.score = 0;
+            this.distance = 0;
+            this.obstacles = [];
+            this.lastSpawnTime = 0;
+            this.lastObstacleX = -1000;
+            this.player = new Player();
+            this.state = GAME_STATE.PLAYING;
+        } else {
+            // Still have lives - continue from current position
+            // Small invincibility period - remove obstacle that caused collision
+            // This prevents immediate death from same obstacle
+            if (this.obstacles.length > 0) {
+                // Remove the obstacle that caused collision
+                const playerBounds = this.player.getBounds();
+                const playerBottomY = this.player.y;
+                
+                const collidedObstacle = this.obstacles.find(obs => {
+                    if (obs.type === 'pit') {
+                        const pitBounds = obs.getBounds();
+                        const isOverPit = playerBounds.x < pitBounds.x + pitBounds.width &&
+                                         playerBounds.x + playerBounds.width > pitBounds.x;
+                        return isOverPit && playerBottomY >= CONFIG.GROUND_Y;
+                    } else {
+                        const obsBounds = obs.getBounds();
+                        return playerBounds.x < obsBounds.x + obsBounds.width &&
+                               playerBounds.x + playerBounds.width > obsBounds.x &&
+                               playerBounds.y < obsBounds.y + obsBounds.height &&
+                               playerBounds.y + playerBounds.height > obsBounds.y;
+                    }
+                });
+                
+                if (collidedObstacle) {
+                    const index = this.obstacles.indexOf(collidedObstacle);
+                    if (index > -1) {
+                        this.obstacles.splice(index, 1);
+                    }
+                }
+            }
+        }
+    }
+    
+    drawHeart(ctx, x, y, size) {
+        // Draw a simple heart symbol (♥)
+        ctx.save();
+        ctx.font = `${size}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('♥', x, y);
+        ctx.restore();
     }
 
     updateAI() {
@@ -794,16 +930,39 @@ class Game {
         }
         
         // Jump if obstacle is close enough
-        if (nearestObstacle && nearestDistance < CONFIG.AI_JUMP_DISTANCE) {
-            // Calculate jump strength based on obstacle type and distance
-            const jumpPower = CONFIG.AI_JUMP_CHARGE;
-            const jumpStrength = CONFIG.JUMP_STRENGTH_MIN + 
-                                (CONFIG.JUMP_STRENGTH_MAX - CONFIG.JUMP_STRENGTH_MIN) * jumpPower;
+        if (nearestObstacle && nearestDistance > 0) {
+            const obstacleType = nearestObstacle.type;
+            const jumpDistance = obstacleType === 'pit' ? CONFIG.AI_JUMP_DISTANCE_PIT : CONFIG.AI_JUMP_DISTANCE_FIRE;
             
-            if (this.player.onGround && !this.player.isJumping) {
-                this.player.velocityY = jumpStrength;
-                this.player.isJumping = true;
-                this.player.onGround = false;
+            if (nearestDistance < jumpDistance) {
+                // Calculate jump strength based on obstacle type, distance, and level difficulty
+                let jumpPower;
+                
+                if (obstacleType === 'pit') {
+                    // For pits, use stronger jump based on distance - closer = stronger jump needed
+                    const distanceRatio = Math.max(0, Math.min(1, nearestDistance / CONFIG.AI_JUMP_DISTANCE_PIT));
+                    // Closer to pit = need stronger jump (inverse relationship)
+                    jumpPower = CONFIG.AI_JUMP_CHARGE_MIN + 
+                               (CONFIG.AI_JUMP_CHARGE_MAX - CONFIG.AI_JUMP_CHARGE_MIN) * (1 - distanceRatio * 0.5);
+                } else {
+                    // For fires, use moderate jump based on distance
+                    const distanceRatio = Math.max(0, Math.min(1, nearestDistance / CONFIG.AI_JUMP_DISTANCE_FIRE));
+                    jumpPower = CONFIG.AI_JUMP_CHARGE_MIN + 
+                               (CONFIG.AI_JUMP_CHARGE_MAX - CONFIG.AI_JUMP_CHARGE_MIN) * (0.5 + distanceRatio * 0.3);
+                }
+                
+                // Add some randomness for realism (5% variation)
+                jumpPower += (Math.random() - 0.5) * 0.1;
+                jumpPower = Math.max(CONFIG.AI_JUMP_CHARGE_MIN, Math.min(CONFIG.AI_JUMP_CHARGE_MAX, jumpPower));
+                
+                const jumpStrength = CONFIG.JUMP_STRENGTH_MIN + 
+                                    (CONFIG.JUMP_STRENGTH_MAX - CONFIG.JUMP_STRENGTH_MIN) * jumpPower;
+                
+                if (this.player.onGround && !this.player.isJumping) {
+                    this.player.velocityY = jumpStrength;
+                    this.player.isJumping = true;
+                    this.player.onGround = false;
+                }
             }
         }
     }
@@ -812,7 +971,9 @@ class Game {
         // Always update ground offset for smooth animation (even in menu)
         if (this.state === GAME_STATE.PLAYING) {
             const levelConfig = LEVELS[this.currentLevel];
-            const speed = levelConfig.speed;
+            // In demo mode, slow down time slightly (0.9x speed for more realistic feel)
+            const timeMultiplier = this.demoMode ? 0.9 : 1.0;
+            const speed = levelConfig.speed * timeMultiplier;
             
             // Update player
             this.player.update();
@@ -822,21 +983,32 @@ class Game {
                 this.updateAI();
             }
 
-            // Update distance and score
+            // Update distance and score (slower in demo)
             this.distance += speed;
             this.score = Math.floor(this.distance / 10);
 
             // Update ground offset for animation
             this.groundOffset = (this.groundOffset + speed) % CONFIG.GROUND_TEXTURE_SIZE;
 
-            // Spawn obstacles
-            if (Math.random() < levelConfig.spawnRate) {
+            // Spawn obstacles (slower in demo for more realistic gameplay)
+            const spawnRate = this.demoMode ? levelConfig.spawnRate * 0.85 : levelConfig.spawnRate;
+            if (Math.random() < spawnRate) {
                 this.spawnObstacle();
             }
 
             // Update obstacles
             this.obstacles.forEach(obstacle => obstacle.update(speed));
-            this.obstacles = this.obstacles.filter(obstacle => !obstacle.isOffScreen());
+            this.obstacles = this.obstacles.filter(obstacle => {
+                if (obstacle.isOffScreen()) {
+                    // Update last obstacle position when obstacle goes off screen
+                    const obstacleEndX = obstacle.x + (obstacle.type === 'pit' ? CONFIG.PIT_WIDTH : CONFIG.OBSTACLE_WIDTH);
+                    if (obstacleEndX < 0) {
+                        this.lastObstacleX = Math.min(this.lastObstacleX, obstacleEndX);
+                    }
+                    return false;
+                }
+                return true;
+            });
 
             // Check collisions (skip in demo mode to allow infinite play)
             if (!this.demoMode) {
@@ -846,7 +1018,7 @@ class Game {
             // Check level complete
             if (this.distance >= levelConfig.targetDistance) {
                 if (this.demoMode) {
-                    // In demo mode, automatically go to next level
+                    // In demo mode, automatically go to next level (looping)
                     this.nextLevel();
                 } else {
                     this.state = GAME_STATE.LEVEL_COMPLETE;
@@ -947,6 +1119,30 @@ class Game {
         const scoreText = `Score: ${this.score}`;
         const scoreWidth = this.ctx.measureText(scoreText).width;
         this.ctx.fillText(scoreText, CONFIG.CANVAS_WIDTH - scoreWidth - 10, uiY);
+        
+        // Lives display
+        const livesY = this.isMobile ? 130 : 80;
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.font = this.isMobile ? '14px monospace' : '16px monospace';
+        this.ctx.fillText('Lives:', 10, livesY);
+        
+        // Draw hearts for lives
+        const heartSize = this.isMobile ? 12 : 14;
+        const heartSpacing = heartSize + 4;
+        const heartsStartX = 60;
+        
+        for (let i = 0; i < 10; i++) {
+            const heartX = heartsStartX + (i * heartSpacing);
+            if (i < this.lives) {
+                // Full heart (red)
+                this.ctx.fillStyle = '#E74C3C';
+            } else {
+                // Empty heart (gray)
+                this.ctx.fillStyle = '#555555';
+            }
+            // Draw simple heart shape
+            this.drawHeart(this.ctx, heartX, livesY - heartSize / 2, heartSize);
+        }
         
         // Demo mode indicator
         if (this.demoMode) {
