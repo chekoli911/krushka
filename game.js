@@ -7,20 +7,50 @@ function isMobileDevice() {
            (window.innerWidth <= 768 && window.innerHeight > window.innerWidth);
 }
 
+function getOptimalCanvasSize() {
+    const isMobile = isMobileDevice();
+    const screenWidth = window.innerWidth || 1920;
+    const screenHeight = window.innerHeight || 1080;
+    
+    if (isMobile) {
+        return { width: 400, height: 800 };
+    }
+    
+    // For desktop, scale based on screen size
+    // Base size for 1920x1080, scale up for 4K
+    const baseWidth = 800;
+    const baseHeight = 450;
+    
+    // For 4K and larger monitors, increase base size
+    if (screenWidth >= 2560) {
+        // 4K and above: use larger base size
+        const scale = Math.min(screenWidth / 2560, screenHeight / 1440);
+        return {
+            width: Math.floor(baseWidth * Math.min(scale, 1.5)), // Max 1.5x for very large screens
+            height: Math.floor(baseHeight * Math.min(scale, 1.5))
+        };
+    }
+    
+    return { width: baseWidth, height: baseHeight };
+}
+
 // ==================== CONFIGURATION ====================
+// Get initial size (will be recalculated on resize)
+const initialSize = getOptimalCanvasSize();
 const CONFIG = {
-    // Will be set based on device
-    CANVAS_WIDTH: isMobileDevice() ? 400 : 800,
-    CANVAS_HEIGHT: isMobileDevice() ? 800 : 450,
+    // Will be set based on device and screen size
+    CANVAS_WIDTH: initialSize.width,
+    CANVAS_HEIGHT: initialSize.height,
     GRAVITY: 0.8,
     JUMP_STRENGTH_MIN: -15,
     JUMP_STRENGTH_MAX: -28,
     JUMP_CHARGE_RATE: 0.02, // How fast jump power charges per frame (at 60fps, takes ~0.8 seconds to max)
     JUMP_CHARGE_DIRECTION: 1, // 1 for increasing, -1 for decreasing
-    GROUND_Y: isMobileDevice() ? 700 : 350,  // Ground position
+    // Ground and player sizes (will be recalculated if needed)
+    GROUND_Y: isMobileDevice() ? 700 : 350,
     PLAYER_WIDTH: isMobileDevice() ? 35 : 40,
     PLAYER_HEIGHT: isMobileDevice() ? 45 : 50,
-    PLAYER_START_X: isMobileDevice() ? 30 : 100,  // Position from left
+    PLAYER_START_X: isMobileDevice() ? 30 : 100,
     BASE_SPEED: 3,
     OBSTACLE_WIDTH: isMobileDevice() ? 35 : 40,
     OBSTACLE_HEIGHT: isMobileDevice() ? 35 : 40,
@@ -374,17 +404,29 @@ class Game {
             const containerWidth = container.clientWidth || window.innerWidth;
             const containerHeight = container.clientHeight || window.innerHeight;
             
+            // Recalculate optimal size on resize (for window resizing and 4K support)
+            const optimalSize = getOptimalCanvasSize();
+            const canvasWidth = optimalSize.width;
+            const canvasHeight = optimalSize.height;
+            
+            // Update CONFIG dynamically
+            CONFIG.CANVAS_WIDTH = canvasWidth;
+            CONFIG.CANVAS_HEIGHT = canvasHeight;
+            
             // Calculate scale to fit screen while maintaining aspect ratio
-            const scaleX = containerWidth / CONFIG.CANVAS_WIDTH;
-            const scaleY = containerHeight / CONFIG.CANVAS_HEIGHT;
+            const scaleX = containerWidth / canvasWidth;
+            const scaleY = containerHeight / canvasHeight;
             const scale = Math.min(scaleX, scaleY) || 1;
             
-            this.canvas.width = CONFIG.CANVAS_WIDTH;
-            this.canvas.height = CONFIG.CANVAS_HEIGHT;
+            // For very large screens (4K+), use full scale but limit to reasonable size
+            const maxScale = isMobileDevice() ? 1 : Math.min(scale, 1.5);
+            
+            this.canvas.width = canvasWidth;
+            this.canvas.height = canvasHeight;
             
             // Scale to fit screen while maintaining aspect ratio
-            const scaledWidth = CONFIG.CANVAS_WIDTH * scale;
-            const scaledHeight = CONFIG.CANVAS_HEIGHT * scale;
+            const scaledWidth = canvasWidth * maxScale;
+            const scaledHeight = canvasHeight * maxScale;
             
             this.canvas.style.width = scaledWidth + 'px';
             this.canvas.style.height = scaledHeight + 'px';
@@ -498,14 +540,14 @@ class Game {
                 // Check if clicked on DEMO button
                 const btnWidth = Math.min(250, CONFIG.CANVAS_WIDTH - 40);
                 const btnHeight = 45;
-                const btnSpacing = 55;
+                const btnSpacing = 70; // Match the spacing in drawMenu
                 const startY = CONFIG.CANVAS_HEIGHT / 2 + 50;
                 const demoBtnY = startY + btnSpacing;
                 
                 if (canvasX >= CONFIG.CANVAS_WIDTH / 2 - btnWidth / 2 &&
                     canvasX <= CONFIG.CANVAS_WIDTH / 2 + btnWidth / 2 &&
                     canvasY >= demoBtnY &&
-                    canvasY <= demoBtnY + btnHeight) {
+                    canvasY <= demoBtnY + btnHeight + 10) { // +10 for border
                     this.handleDemoStart();
                 }
             }
@@ -958,7 +1000,7 @@ class Game {
         // Start button with border (smaller for vertical)
         const btnWidth = Math.min(250, CONFIG.CANVAS_WIDTH - 40);
         const btnHeight = 45;
-        const btnSpacing = 55;
+        const btnSpacing = 70; // Increased spacing for better touch target
         const startY = CONFIG.CANVAS_HEIGHT / 2 + 50;
         
         // START GAME button
@@ -970,14 +1012,15 @@ class Game {
         this.ctx.font = 'bold 18px monospace';
         this.ctx.fillText('START GAME', CONFIG.CANVAS_WIDTH / 2, startY + 30);
 
-        // DEMO button
+        // DEMO button (moved lower for better touch target)
+        const demoY = startY + btnSpacing;
         this.ctx.fillStyle = '#000000';
-        this.ctx.fillRect(CONFIG.CANVAS_WIDTH / 2 - btnWidth / 2 - 5, startY + btnSpacing, btnWidth + 10, btnHeight + 10);
+        this.ctx.fillRect(CONFIG.CANVAS_WIDTH / 2 - btnWidth / 2 - 5, demoY, btnWidth + 10, btnHeight + 10);
         this.ctx.fillStyle = '#3498DB';
-        this.ctx.fillRect(CONFIG.CANVAS_WIDTH / 2 - btnWidth / 2, startY + btnSpacing + 5, btnWidth, btnHeight);
+        this.ctx.fillRect(CONFIG.CANVAS_WIDTH / 2 - btnWidth / 2, demoY + 5, btnWidth, btnHeight);
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = 'bold 18px monospace';
-        this.ctx.fillText('DEMO', CONFIG.CANVAS_WIDTH / 2, startY + btnSpacing + 30);
+        this.ctx.fillText('DEMO', CONFIG.CANVAS_WIDTH / 2, demoY + 30);
 
         this.ctx.textAlign = 'left';
         this.ctx.textBaseline = 'alphabetic';
