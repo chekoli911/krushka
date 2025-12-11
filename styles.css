@@ -56,13 +56,34 @@ body {
     object-fit: contain;
 }
 
-/* Mobile: full screen portrait */
+/* Mobile: full screen portrait - iPhone and other mobile devices */
 @media screen and (max-width: 768px) {
-    #game-canvas {
+    body {
+        /* Full screen on mobile */
         width: 100vw;
         height: 100vh;
-        max-width: 100vw;
-        max-height: 100vh;
+        position: fixed;
+        top: 0;
+        left: 0;
+        overflow: hidden;
+    }
+    
+    #game-container {
+        width: 100vw;
+        height: 100vh;
+        position: fixed;
+        top: 0;
+        left: 0;
+    }
+    
+    #game-canvas {
+        width: 100vw !important;
+        height: 100vh !important;
+        max-width: 100vw !important;
+        max-height: 100vh !important;
+        position: fixed;
+        top: 0;
+        left: 0;
     }
 }
 

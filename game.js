@@ -389,7 +389,7 @@ class Game {
         this.currentLevel = 0;
         this.score = 0;
         this.distance = 0;
-        this.lives = 10; // Player lives
+        this.lives = 3; // Player lives (reduced to 3)
         this.player = null;
         this.obstacles = [];
         this.lastSpawnTime = 0;
@@ -430,23 +430,31 @@ class Game {
             CONFIG.CANVAS_WIDTH = canvasWidth;
             CONFIG.CANVAS_HEIGHT = canvasHeight;
             
-            // Calculate scale to fit screen while maintaining aspect ratio
-            const scaleX = containerWidth / canvasWidth;
-            const scaleY = containerHeight / canvasHeight;
-            const scale = Math.min(scaleX, scaleY) || 1;
-            
-            // For very large screens (4K+), use full scale but limit to reasonable size
-            const maxScale = isMobileDevice() ? 1 : Math.min(scale, 1.5);
-            
-            this.canvas.width = canvasWidth;
-            this.canvas.height = canvasHeight;
-            
-            // Scale to fit screen while maintaining aspect ratio
-            const scaledWidth = canvasWidth * maxScale;
-            const scaledHeight = canvasHeight * maxScale;
-            
-            this.canvas.style.width = scaledWidth + 'px';
-            this.canvas.style.height = scaledHeight + 'px';
+            // For mobile devices, use full screen
+            if (this.isMobile) {
+                this.canvas.width = canvasWidth;
+                this.canvas.height = canvasHeight;
+                this.canvas.style.width = '100vw';
+                this.canvas.style.height = '100vh';
+            } else {
+                // For desktop, calculate scale to fit screen while maintaining aspect ratio
+                const scaleX = containerWidth / canvasWidth;
+                const scaleY = containerHeight / canvasHeight;
+                const scale = Math.min(scaleX, scaleY) || 1;
+                
+                // For very large screens (4K+), use full scale but limit to reasonable size
+                const maxScale = Math.min(scale, 1.5);
+                
+                this.canvas.width = canvasWidth;
+                this.canvas.height = canvasHeight;
+                
+                // Scale to fit screen while maintaining aspect ratio
+                const scaledWidth = canvasWidth * maxScale;
+                const scaledHeight = canvasHeight * maxScale;
+                
+                this.canvas.style.width = scaledWidth + 'px';
+                this.canvas.style.height = scaledHeight + 'px';
+            }
         };
         
         resize();
@@ -682,7 +690,7 @@ class Game {
         this.currentLevel = 0;
         this.score = 0;
         this.distance = 0;
-        this.lives = 10; // Reset lives
+        this.lives = 3; // Reset lives to 3
         this.player = new Player();
         this.obstacles = [];
         this.lastSpawnTime = 0;
@@ -754,8 +762,9 @@ class Game {
         
         // Calculate minimum safe distance between obstacles
         // Player max jump distance is approximately 250-300px
-        const minDistance = 280; // Minimum distance between obstacles (increased for safety)
+        const minDistance = 280; // Minimum distance between obstacles
         const safeDistance = 320; // Safe distance for comfortable gameplay
+        const fireSequenceDistance = 200; // Distance for fire sequences (jumpable)
         
         // Check if we can spawn obstacle (enough distance from last one)
         const distanceFromLast = x - this.lastObstacleX;
@@ -763,23 +772,34 @@ class Game {
             return; // Don't spawn if too close
         }
         
-        // Smart obstacle generation to avoid impossible combinations
+        // Smart obstacle generation with fire sequences
         let type;
         const lastObstacle = this.obstacles.length > 0 ? this.obstacles[this.obstacles.length - 1] : null;
         const secondLastObstacle = this.obstacles.length > 1 ? this.obstacles[this.obstacles.length - 2] : null;
         const thirdLastObstacle = this.obstacles.length > 2 ? this.obstacles[this.obstacles.length - 3] : null;
         
-        // Check for problematic patterns - prevent 3+ of same type in a row
-        if (lastObstacle && secondLastObstacle && thirdLastObstacle) {
+        // Check if we're in a fire sequence pattern
+        const inFireSequence = lastObstacle && secondLastObstacle && 
+                               lastObstacle.type === 'fire' && secondLastObstacle.type === 'fire';
+        
+        // 30% chance to create fire sequence (3 fires in a row with jumpable distance)
+        if (!inFireSequence && Math.random() < 0.3 && distanceFromLast >= fireSequenceDistance) {
+            // Start fire sequence
+            type = 'fire';
+        }
+        // Continue fire sequence if we're in one
+        else if (inFireSequence && distanceFromLast >= fireSequenceDistance) {
+            type = 'fire'; // Continue sequence
+        }
+        // Check for problematic patterns - prevent 3+ of same type in a row (except fire sequences)
+        else if (lastObstacle && secondLastObstacle && thirdLastObstacle) {
             // If last three were same type, force opposite
             if (lastObstacle.type === 'pit' && secondLastObstacle.type === 'pit' && thirdLastObstacle.type === 'pit') {
                 type = 'fire'; // Force fire after 3 pits
             } else if (lastObstacle.type === 'fire' && secondLastObstacle.type === 'fire' && thirdLastObstacle.type === 'fire') {
-                type = 'pit'; // Force pit after 3 fires
+                type = 'pit'; // Force pit after 3 fires (end sequence)
             } else if (lastObstacle.type === 'pit' && secondLastObstacle.type === 'pit') {
                 type = 'fire'; // Avoid 3rd pit
-            } else if (lastObstacle.type === 'fire' && secondLastObstacle.type === 'fire') {
-                type = 'pit'; // Avoid 3rd fire
             } else {
                 // Alternate pattern
                 type = lastObstacle.type === 'pit' ? 'fire' : 'pit';
@@ -791,8 +811,8 @@ class Game {
             if (lastObstacle.type === 'pit' && secondLastObstacle.type === 'pit') {
                 type = 'fire';
             }
-            // If last two were fires, next must be pit (avoid 3 fires in a row)
-            else if (lastObstacle.type === 'fire' && secondLastObstacle.type === 'fire') {
+            // If last two were fires (not in sequence), next must be pit
+            else if (lastObstacle.type === 'fire' && secondLastObstacle.type === 'fire' && distanceFromLast < fireSequenceDistance) {
                 type = 'pit';
             }
             // Alternate pattern
@@ -811,8 +831,8 @@ class Game {
         }
         
         // Ensure minimum distance between obstacles
-        if (distanceFromLast < safeDistance && lastObstacle) {
-            // If too close, skip this spawn
+        if (distanceFromLast < safeDistance && lastObstacle && !inFireSequence) {
+            // If too close and not in fire sequence, skip this spawn
             return;
         }
         
@@ -862,7 +882,7 @@ class Game {
         if (this.lives <= 0) {
             // No lives left - restart from level 1
             this.currentLevel = 0;
-            this.lives = 10;
+            this.lives = 3;
             this.score = 0;
             this.distance = 0;
             this.obstacles = [];
@@ -990,8 +1010,9 @@ class Game {
             // Update ground offset for animation
             this.groundOffset = (this.groundOffset + speed) % CONFIG.GROUND_TEXTURE_SIZE;
 
-            // Spawn obstacles (slower in demo for more realistic gameplay)
-            const spawnRate = this.demoMode ? levelConfig.spawnRate * 0.85 : levelConfig.spawnRate;
+            // Spawn obstacles (more obstacles, slower in demo)
+            const baseSpawnRate = levelConfig.spawnRate * 1.3; // 30% more obstacles
+            const spawnRate = this.demoMode ? baseSpawnRate * 0.85 : baseSpawnRate;
             if (Math.random() < spawnRate) {
                 this.spawnObstacle();
             }
@@ -1015,8 +1036,9 @@ class Game {
                 this.checkCollisions();
             }
 
-            // Check level complete
-            if (this.distance >= levelConfig.targetDistance) {
+            // Check level complete - use score instead of distance
+            const targetScore = 750; // Fixed score target for all levels
+            if (this.score >= targetScore) {
                 if (this.demoMode) {
                     // In demo mode, automatically go to next level (looping)
                     this.nextLevel();
@@ -1126,12 +1148,13 @@ class Game {
         this.ctx.font = this.isMobile ? '14px monospace' : '16px monospace';
         this.ctx.fillText('Lives:', 10, livesY);
         
-        // Draw hearts for lives
+        // Draw hearts for lives (positioned right after "Lives:" text)
         const heartSize = this.isMobile ? 12 : 14;
         const heartSpacing = heartSize + 4;
-        const heartsStartX = 60;
+        const livesTextWidth = this.ctx.measureText('Lives:').width;
+        const heartsStartX = 10 + livesTextWidth + 8; // Right after "Lives:" with spacing
         
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 3; i++) { // 3 lives total
             const heartX = heartsStartX + (i * heartSpacing);
             if (i < this.lives) {
                 // Full heart (red)
@@ -1261,7 +1284,7 @@ class Game {
         if (this.currentLevel < LEVELS.length - 1) {
             this.ctx.fillText(`Level ${this.currentLevel + 1} Complete!`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 60);
             this.ctx.font = '20px monospace';
-            this.ctx.fillText(`Score: ${this.score}`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 20);
+            this.ctx.fillText(`Score: ${this.score} / 750`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 20);
             this.ctx.font = '16px monospace';
             this.ctx.fillText('Tap for Next Level', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 20);
         }
