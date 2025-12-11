@@ -1,25 +1,34 @@
 // Telegram Mini App Game: Krushka - Knight Rider
 // A pixel-art endless runner with 5 themed levels
 
+// ==================== DEVICE DETECTION ====================
+function isMobileDevice() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+           (window.innerWidth <= 768 && window.innerHeight > window.innerWidth);
+}
+
 // ==================== CONFIGURATION ====================
 const CONFIG = {
-    CANVAS_WIDTH: 400,  // Vertical mode: narrow width
-    CANVAS_HEIGHT: 800, // Vertical mode: tall height
+    // Will be set based on device
+    CANVAS_WIDTH: isMobileDevice() ? 400 : 800,
+    CANVAS_HEIGHT: isMobileDevice() ? 800 : 450,
     GRAVITY: 0.8,
     JUMP_STRENGTH_MIN: -15,
     JUMP_STRENGTH_MAX: -28,
     JUMP_CHARGE_RATE: 0.02, // How fast jump power charges per frame (at 60fps, takes ~0.8 seconds to max)
     JUMP_CHARGE_DIRECTION: 1, // 1 for increasing, -1 for decreasing
-    GROUND_Y: 700,  // Ground position for vertical mode
-    PLAYER_WIDTH: 35,
-    PLAYER_HEIGHT: 45,
-    PLAYER_START_X: 50,  // Position from left (will be adjusted for centering)
+    GROUND_Y: isMobileDevice() ? 700 : 350,  // Ground position
+    PLAYER_WIDTH: isMobileDevice() ? 35 : 40,
+    PLAYER_HEIGHT: isMobileDevice() ? 45 : 50,
+    PLAYER_START_X: isMobileDevice() ? 30 : 100,  // Position from left
     BASE_SPEED: 3,
-    OBSTACLE_WIDTH: 35,
-    OBSTACLE_HEIGHT: 35,
-    PIT_WIDTH: 70,
-    PIT_HEIGHT: 90,
+    OBSTACLE_WIDTH: isMobileDevice() ? 35 : 40,
+    OBSTACLE_HEIGHT: isMobileDevice() ? 35 : 40,
+    PIT_WIDTH: isMobileDevice() ? 70 : 80,
+    PIT_HEIGHT: isMobileDevice() ? 90 : 100,
     GROUND_TEXTURE_SIZE: 20, // Size of ground texture pattern
+    AI_JUMP_DISTANCE: 150, // Distance before obstacle to jump (AI)
+    AI_JUMP_CHARGE: 0.7, // AI jump charge power (0-1)
 };
 
 // ==================== LEVEL CONFIGURATIONS ====================
@@ -88,8 +97,12 @@ const GAME_STATE = {
 // ==================== PLAYER CLASS ====================
 class Player {
     constructor() {
-        // Position player near left edge (mobile vertical mode)
-        this.x = 30; // Close to left edge
+        // Position player based on device type
+        if (isMobileDevice()) {
+            this.x = 30; // Close to left edge on mobile
+        } else {
+            this.x = CONFIG.CANVAS_WIDTH / 2 - CONFIG.PLAYER_WIDTH / 2; // Centered on desktop
+        }
         this.y = CONFIG.GROUND_Y;
         this.width = CONFIG.PLAYER_WIDTH;
         this.height = CONFIG.PLAYER_HEIGHT;
@@ -340,6 +353,8 @@ class Game {
         this.animationId = null;
         this.backgroundImages = {};
         this.groundOffset = 0; // For moving ground texture
+        this.demoMode = false; // CPU control mode
+        this.isMobile = isMobileDevice();
         
         this.setupCanvas();
         this.setupTelegram();
@@ -356,11 +371,10 @@ class Game {
                 return;
             }
             
-            // For vertical mode, use full screen
             const containerWidth = container.clientWidth || window.innerWidth;
             const containerHeight = container.clientHeight || window.innerHeight;
             
-            // Calculate scale to fit vertically (portrait mode)
+            // Calculate scale to fit screen while maintaining aspect ratio
             const scaleX = containerWidth / CONFIG.CANVAS_WIDTH;
             const scaleY = containerHeight / CONFIG.CANVAS_HEIGHT;
             const scale = Math.min(scaleX, scaleY) || 1;
@@ -467,8 +481,34 @@ class Game {
         });
 
         // Also focus on click
-        this.canvas.addEventListener('click', () => {
+        this.canvas.addEventListener('click', (e) => {
             this.focusCanvas();
+            // Handle menu button clicks
+            if (this.state === GAME_STATE.MENU) {
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                // Scale coordinates to canvas coordinates
+                const scaleX = this.canvas.width / rect.width;
+                const scaleY = this.canvas.height / rect.height;
+                const canvasX = x * scaleX;
+                const canvasY = y * scaleY;
+                
+                // Check if clicked on DEMO button
+                const btnWidth = Math.min(250, CONFIG.CANVAS_WIDTH - 40);
+                const btnHeight = 45;
+                const btnSpacing = 55;
+                const startY = CONFIG.CANVAS_HEIGHT / 2 + 50;
+                const demoBtnY = startY + btnSpacing;
+                
+                if (canvasX >= CONFIG.CANVAS_WIDTH / 2 - btnWidth / 2 &&
+                    canvasX <= CONFIG.CANVAS_WIDTH / 2 + btnWidth / 2 &&
+                    canvasY >= demoBtnY &&
+                    canvasY <= demoBtnY + btnHeight) {
+                    this.handleDemoStart();
+                }
+            }
         });
 
         // Mouse/Touch - end
@@ -497,16 +537,25 @@ class Game {
     }
 
     handleJumpStart() {
-        if (this.state === GAME_STATE.PLAYING && this.player) {
+        if (this.state === GAME_STATE.PLAYING && this.player && !this.demoMode) {
             this.player.startJumpCharge();
+        } else if (this.state === GAME_STATE.PLAYING && this.demoMode) {
+            // Stop demo mode on click/tap
+            this.stopDemo();
         } else if (this.state === GAME_STATE.MENU) {
-            this.startLevel();
+            this.startLevel(false); // Normal mode
         } else if (this.state === GAME_STATE.LEVEL_COMPLETE) {
             this.nextLevel();
         } else if (this.state === GAME_STATE.GAME_OVER) {
             this.restartLevel();
         } else if (this.state === GAME_STATE.ALL_COMPLETE) {
             this.restartGame();
+        }
+    }
+
+    handleDemoStart() {
+        if (this.state === GAME_STATE.MENU) {
+            this.startLevel(true); // Demo mode
         }
     }
 
@@ -554,7 +603,7 @@ class Game {
         setTimeout(() => this.focusCanvas(), 100);
     }
 
-    startLevel() {
+    startLevel(demoMode = false) {
         this.state = GAME_STATE.PLAYING;
         this.currentLevel = 0;
         this.score = 0;
@@ -563,12 +612,23 @@ class Game {
         this.obstacles = [];
         this.lastSpawnTime = 0;
         this.frameCount = 0;
+        this.demoMode = demoMode;
     }
 
     nextLevel() {
         this.currentLevel++;
         if (this.currentLevel >= LEVELS.length) {
-            this.state = GAME_STATE.ALL_COMPLETE;
+            if (this.demoMode) {
+                // In demo mode, loop levels
+                this.currentLevel = 0;
+                this.distance = 0;
+                this.obstacles = [];
+                this.lastSpawnTime = 0;
+                this.player = new Player();
+                this.state = GAME_STATE.PLAYING;
+            } else {
+                this.state = GAME_STATE.ALL_COMPLETE;
+            }
         } else {
             this.distance = 0;
             this.obstacles = [];
@@ -584,6 +644,7 @@ class Game {
         this.lastSpawnTime = 0;
         this.player = new Player();
         this.state = GAME_STATE.PLAYING;
+        // Keep demo mode if it was active
     }
 
     restartGame() {
@@ -594,6 +655,13 @@ class Game {
         this.lastSpawnTime = 0;
         this.player = new Player();
         this.state = GAME_STATE.PLAYING;
+        this.demoMode = false; // Reset demo mode
+    }
+    
+    stopDemo() {
+        // Stop demo and return to menu
+        this.demoMode = false;
+        this.state = GAME_STATE.MENU;
     }
 
     spawnObstacle() {
@@ -638,6 +706,36 @@ class Game {
         return false;
     }
 
+    updateAI() {
+        if (!this.demoMode || !this.player || !this.player.onGround) return;
+        
+        // Find nearest obstacle
+        let nearestObstacle = null;
+        let nearestDistance = Infinity;
+        
+        for (let obstacle of this.obstacles) {
+            const distance = obstacle.x - (this.player.x + this.player.width);
+            if (distance > 0 && distance < nearestDistance) {
+                nearestDistance = distance;
+                nearestObstacle = obstacle;
+            }
+        }
+        
+        // Jump if obstacle is close enough
+        if (nearestObstacle && nearestDistance < CONFIG.AI_JUMP_DISTANCE) {
+            // Calculate jump strength based on obstacle type and distance
+            const jumpPower = CONFIG.AI_JUMP_CHARGE;
+            const jumpStrength = CONFIG.JUMP_STRENGTH_MIN + 
+                                (CONFIG.JUMP_STRENGTH_MAX - CONFIG.JUMP_STRENGTH_MIN) * jumpPower;
+            
+            if (this.player.onGround && !this.player.isJumping) {
+                this.player.velocityY = jumpStrength;
+                this.player.isJumping = true;
+                this.player.onGround = false;
+            }
+        }
+    }
+
     update() {
         // Always update ground offset for smooth animation (even in menu)
         if (this.state === GAME_STATE.PLAYING) {
@@ -646,6 +744,11 @@ class Game {
             
             // Update player
             this.player.update();
+            
+            // AI control in demo mode
+            if (this.demoMode) {
+                this.updateAI();
+            }
 
             // Update distance and score
             this.distance += speed;
@@ -663,12 +766,19 @@ class Game {
             this.obstacles.forEach(obstacle => obstacle.update(speed));
             this.obstacles = this.obstacles.filter(obstacle => !obstacle.isOffScreen());
 
-            // Check collisions
-            this.checkCollisions();
+            // Check collisions (skip in demo mode to allow infinite play)
+            if (!this.demoMode) {
+                this.checkCollisions();
+            }
 
             // Check level complete
             if (this.distance >= levelConfig.targetDistance) {
-                this.state = GAME_STATE.LEVEL_COMPLETE;
+                if (this.demoMode) {
+                    // In demo mode, automatically go to next level
+                    this.nextLevel();
+                } else {
+                    this.state = GAME_STATE.LEVEL_COMPLETE;
+                }
             }
         } else {
             // Animate ground in menu too (slower)
@@ -750,18 +860,28 @@ class Game {
     drawUI() {
         const levelConfig = LEVELS[this.currentLevel];
         
-        // Level indicator (moved lower on mobile)
+        // Level indicator (moved lower on mobile, normal on desktop)
+        const uiY = this.isMobile ? 90 : 30; // Even lower on mobile: 90 instead of 60
+        const uiY2 = this.isMobile ? 110 : 55; // Even lower on mobile: 110 instead of 80
+        
         this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.font = 'bold 16px monospace';
-        this.ctx.fillText(`Level: ${this.currentLevel + 1}/5`, 10, 60); // Moved down from 25 to 60
-        this.ctx.font = '14px monospace';
-        this.ctx.fillText(levelConfig.name, 10, 80); // Moved down from 45 to 80
+        this.ctx.font = this.isMobile ? 'bold 16px monospace' : 'bold 20px monospace';
+        this.ctx.fillText(`Level: ${this.currentLevel + 1}/5`, 10, uiY);
+        this.ctx.font = this.isMobile ? '14px monospace' : '18px monospace';
+        this.ctx.fillText(levelConfig.name, 10, uiY2);
 
-        // Score (moved lower on mobile)
-        this.ctx.font = 'bold 16px monospace';
+        // Score (moved lower on mobile, normal on desktop)
+        this.ctx.font = this.isMobile ? 'bold 16px monospace' : 'bold 20px monospace';
         const scoreText = `Score: ${this.score}`;
         const scoreWidth = this.ctx.measureText(scoreText).width;
-        this.ctx.fillText(scoreText, CONFIG.CANVAS_WIDTH - scoreWidth - 10, 60); // Moved down from 25 to 60
+        this.ctx.fillText(scoreText, CONFIG.CANVAS_WIDTH - scoreWidth - 10, uiY);
+        
+        // Demo mode indicator
+        if (this.demoMode) {
+            this.ctx.fillStyle = '#FFD700';
+            this.ctx.font = 'bold 14px monospace';
+            this.ctx.fillText('DEMO MODE', CONFIG.CANVAS_WIDTH / 2 - 60, uiY);
+        }
 
         // Jump charge indicator (when charging) - centered at bottom
         if (this.player && this.player.jumpCharging && this.player.onGround) {
@@ -838,13 +958,26 @@ class Game {
         // Start button with border (smaller for vertical)
         const btnWidth = Math.min(250, CONFIG.CANVAS_WIDTH - 40);
         const btnHeight = 45;
+        const btnSpacing = 55;
+        const startY = CONFIG.CANVAS_HEIGHT / 2 + 50;
+        
+        // START GAME button
         this.ctx.fillStyle = '#000000';
-        this.ctx.fillRect(CONFIG.CANVAS_WIDTH / 2 - btnWidth / 2 - 5, CONFIG.CANVAS_HEIGHT / 2 + 50, btnWidth + 10, btnHeight + 10);
+        this.ctx.fillRect(CONFIG.CANVAS_WIDTH / 2 - btnWidth / 2 - 5, startY, btnWidth + 10, btnHeight + 10);
         this.ctx.fillStyle = '#27AE60';
-        this.ctx.fillRect(CONFIG.CANVAS_WIDTH / 2 - btnWidth / 2, CONFIG.CANVAS_HEIGHT / 2 + 55, btnWidth, btnHeight);
+        this.ctx.fillRect(CONFIG.CANVAS_WIDTH / 2 - btnWidth / 2, startY + 5, btnWidth, btnHeight);
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = 'bold 18px monospace';
-        this.ctx.fillText('START GAME', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 80);
+        this.ctx.fillText('START GAME', CONFIG.CANVAS_WIDTH / 2, startY + 30);
+
+        // DEMO button
+        this.ctx.fillStyle = '#000000';
+        this.ctx.fillRect(CONFIG.CANVAS_WIDTH / 2 - btnWidth / 2 - 5, startY + btnSpacing, btnWidth + 10, btnHeight + 10);
+        this.ctx.fillStyle = '#3498DB';
+        this.ctx.fillRect(CONFIG.CANVAS_WIDTH / 2 - btnWidth / 2, startY + btnSpacing + 5, btnWidth, btnHeight);
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.font = 'bold 18px monospace';
+        this.ctx.fillText('DEMO', CONFIG.CANVAS_WIDTH / 2, startY + btnSpacing + 30);
 
         this.ctx.textAlign = 'left';
         this.ctx.textBaseline = 'alphabetic';
