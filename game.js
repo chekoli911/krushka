@@ -3,8 +3,17 @@
 
 // ==================== DEVICE DETECTION ====================
 function isMobileDevice() {
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-           (window.innerWidth <= 768 && window.innerHeight > window.innerWidth);
+    // Check if it's a mobile device by user agent
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // Also check screen size - if width <= 768 and height > width, it's mobile
+    const isMobileSize = window.innerWidth <= 768 && window.innerHeight > window.innerWidth;
+    
+    // For large screens (desktop), always use horizontal mode
+    const isLargeScreen = window.innerWidth > 768;
+    
+    // Mobile only if mobile UA AND (small screen OR portrait orientation)
+    return isMobileUA && (isMobileSize || (!isLargeScreen && window.innerHeight > window.innerWidth));
 }
 
 function getOptimalCanvasSize() {
@@ -12,11 +21,12 @@ function getOptimalCanvasSize() {
     const screenWidth = window.innerWidth || 1920;
     const screenHeight = window.innerHeight || 1080;
     
+    // Mobile: vertical mode
     if (isMobile) {
         return { width: 400, height: 800 };
     }
     
-    // For desktop, scale based on screen size
+    // Desktop/Large screens: horizontal mode (landscape)
     // Base size for 1920x1080, scale up for 4K
     const baseWidth = 800;
     const baseHeight = 450;
@@ -31,6 +41,7 @@ function getOptimalCanvasSize() {
         };
     }
     
+    // Standard desktop: horizontal mode
     return { width: baseWidth, height: baseHeight };
 }
 
@@ -385,6 +396,8 @@ class Game {
         this.groundOffset = 0; // For moving ground texture
         this.demoMode = false; // CPU control mode
         this.isMobile = isMobileDevice();
+        this.demoTimer = null; // Timer for auto-demo
+        this.lastInteractionTime = Date.now(); // Track last user interaction
         
         this.setupCanvas();
         this.setupTelegram();
@@ -463,6 +476,9 @@ class Game {
 
         // Keyboard - keydown (use window to catch all events)
         const keydownHandler = (e) => {
+            // Reset demo timer on any key press
+            this.resetDemoTimer();
+            
             const isSpace = e.code === 'Space' || e.key === ' ' || e.keyCode === 32;
             if (isSpace && !this.spacePressed) {
                 e.preventDefault();
@@ -511,6 +527,7 @@ class Game {
         this.canvas.addEventListener('mousedown', (e) => {
             e.preventDefault();
             this.focusCanvas();
+            this.resetDemoTimer(); // Reset timer on interaction
             this.touchActive = true;
             this.handleJumpStart();
         });
@@ -518,6 +535,7 @@ class Game {
         this.canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
             this.focusCanvas();
+            this.resetDemoTimer(); // Reset timer on interaction
             this.touchActive = true;
             this.handleJumpStart();
         });
@@ -525,32 +543,8 @@ class Game {
         // Also focus on click
         this.canvas.addEventListener('click', (e) => {
             this.focusCanvas();
-            // Handle menu button clicks
-            if (this.state === GAME_STATE.MENU) {
-                const rect = this.canvas.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-                
-                // Scale coordinates to canvas coordinates
-                const scaleX = this.canvas.width / rect.width;
-                const scaleY = this.canvas.height / rect.height;
-                const canvasX = x * scaleX;
-                const canvasY = y * scaleY;
-                
-                // Check if clicked on DEMO button
-                const btnWidth = Math.min(250, CONFIG.CANVAS_WIDTH - 40);
-                const btnHeight = 45;
-                const btnSpacing = 70; // Match the spacing in drawMenu
-                const startY = CONFIG.CANVAS_HEIGHT / 2 + 50;
-                const demoBtnY = startY + btnSpacing;
-                
-                if (canvasX >= CONFIG.CANVAS_WIDTH / 2 - btnWidth / 2 &&
-                    canvasX <= CONFIG.CANVAS_WIDTH / 2 + btnWidth / 2 &&
-                    canvasY >= demoBtnY &&
-                    canvasY <= demoBtnY + btnHeight + 10) { // +10 for border
-                    this.handleDemoStart();
-                }
-            }
+            // Reset demo timer on any click
+            this.resetDemoTimer();
         });
 
         // Mouse/Touch - end
@@ -643,9 +637,43 @@ class Game {
         this.gameLoop();
         // Focus canvas after a short delay to enable keyboard input
         setTimeout(() => this.focusCanvas(), 100);
+        // Start demo timer
+        this.startDemoTimer();
+    }
+    
+    startDemoTimer() {
+        // Clear any existing timer
+        if (this.demoTimer) {
+            clearTimeout(this.demoTimer);
+        }
+        
+        // Reset interaction time
+        this.lastInteractionTime = Date.now();
+        
+        // Start timer for 30 seconds
+        this.demoTimer = setTimeout(() => {
+            if (this.state === GAME_STATE.MENU) {
+                // Auto-start demo mode after 30 seconds of inactivity
+                this.handleDemoStart();
+            }
+        }, 30000); // 30 seconds
+    }
+    
+    resetDemoTimer() {
+        // Reset timer on any user interaction
+        this.lastInteractionTime = Date.now();
+        if (this.state === GAME_STATE.MENU) {
+            this.startDemoTimer();
+        }
     }
 
     startLevel(demoMode = false) {
+        // Clear demo timer when starting game
+        if (this.demoTimer) {
+            clearTimeout(this.demoTimer);
+            this.demoTimer = null;
+        }
+        
         this.state = GAME_STATE.PLAYING;
         this.currentLevel = 0;
         this.score = 0;
@@ -704,6 +732,8 @@ class Game {
         // Stop demo and return to menu
         this.demoMode = false;
         this.state = GAME_STATE.MENU;
+        // Restart demo timer
+        this.startDemoTimer();
     }
 
     spawnObstacle() {
@@ -1000,7 +1030,6 @@ class Game {
         // Start button with border (smaller for vertical)
         const btnWidth = Math.min(250, CONFIG.CANVAS_WIDTH - 40);
         const btnHeight = 45;
-        const btnSpacing = 70; // Increased spacing for better touch target
         const startY = CONFIG.CANVAS_HEIGHT / 2 + 50;
         
         // START GAME button
@@ -1011,16 +1040,15 @@ class Game {
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = 'bold 18px monospace';
         this.ctx.fillText('START GAME', CONFIG.CANVAS_WIDTH / 2, startY + 30);
-
-        // DEMO button (moved lower for better touch target)
-        const demoY = startY + btnSpacing;
-        this.ctx.fillStyle = '#000000';
-        this.ctx.fillRect(CONFIG.CANVAS_WIDTH / 2 - btnWidth / 2 - 5, demoY, btnWidth + 10, btnHeight + 10);
-        this.ctx.fillStyle = '#3498DB';
-        this.ctx.fillRect(CONFIG.CANVAS_WIDTH / 2 - btnWidth / 2, demoY + 5, btnWidth, btnHeight);
-        this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.font = 'bold 18px monospace';
-        this.ctx.fillText('DEMO', CONFIG.CANVAS_WIDTH / 2, demoY + 30);
+        
+        // Show auto-demo hint
+        const timeSinceInteraction = (Date.now() - this.lastInteractionTime) / 1000;
+        const timeLeft = Math.max(0, 30 - timeSinceInteraction);
+        if (timeLeft > 0 && timeLeft < 30) {
+            this.ctx.font = '12px monospace';
+            this.ctx.fillStyle = '#888888';
+            this.ctx.fillText(`Demo starts in ${Math.ceil(timeLeft)}s`, CONFIG.CANVAS_WIDTH / 2, startY + btnHeight + 30);
+        }
 
         this.ctx.textAlign = 'left';
         this.ctx.textBaseline = 'alphabetic';
