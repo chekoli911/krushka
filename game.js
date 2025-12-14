@@ -132,6 +132,7 @@ const LEVELS = [
 const GAME_STATE = {
     MENU: 'menu',
     PLAYING: 'playing',
+    PAUSED: 'paused',
     LEVEL_COMPLETE: 'levelComplete',
     GAME_OVER: 'gameOver',
     ALL_COMPLETE: 'allComplete'
@@ -557,6 +558,34 @@ class Game {
             this.focusCanvas();
             // Reset demo timer on any click
             this.resetDemoTimer();
+            
+            // Handle pause button click
+            if (this.state === GAME_STATE.PLAYING && this.pauseButtonBounds) {
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                // Scale coordinates to canvas coordinates
+                const scaleX = this.canvas.width / rect.width;
+                const scaleY = this.canvas.height / rect.height;
+                const canvasX = x * scaleX;
+                const canvasY = y * scaleY;
+                
+                // Check if clicked on pause button
+                if (canvasX >= this.pauseButtonBounds.x &&
+                    canvasX <= this.pauseButtonBounds.x + this.pauseButtonBounds.width &&
+                    canvasY >= this.pauseButtonBounds.y &&
+                    canvasY <= this.pauseButtonBounds.y + this.pauseButtonBounds.height) {
+                    this.togglePause();
+                    return;
+                }
+            }
+            
+            // Handle pause/unpause on click during paused state
+            if (this.state === GAME_STATE.PAUSED) {
+                this.togglePause();
+                return;
+            }
         });
 
         // Mouse/Touch - end
@@ -755,6 +784,14 @@ class Game {
         // Restart demo timer
         this.startDemoTimer();
     }
+    
+    togglePause() {
+        if (this.state === GAME_STATE.PLAYING) {
+            this.state = GAME_STATE.PAUSED;
+        } else if (this.state === GAME_STATE.PAUSED) {
+            this.state = GAME_STATE.PLAYING;
+        }
+    }
 
     spawnObstacle() {
         const levelConfig = LEVELS[this.currentLevel];
@@ -782,10 +819,13 @@ class Game {
         const inFireSequence = lastObstacle && secondLastObstacle && 
                                lastObstacle.type === 'fire' && secondLastObstacle.type === 'fire';
         
-        // 30% chance to create fire sequence (3 fires in a row with jumpable distance)
-        if (!inFireSequence && Math.random() < 0.3 && distanceFromLast >= fireSequenceDistance) {
+        // 40% chance to create fire sequence, 30% chance for pit (more obstacles)
+        if (!inFireSequence && Math.random() < 0.4 && distanceFromLast >= fireSequenceDistance) {
             // Start fire sequence
             type = 'fire';
+        } else if (!inFireSequence && Math.random() < 0.3 && distanceFromLast >= minDistance) {
+            // Add more pits
+            type = 'pit';
         }
         // Continue fire sequence if we're in one
         else if (inFireSequence && distanceFromLast >= fireSequenceDistance) {
@@ -988,6 +1028,11 @@ class Game {
     }
 
     update() {
+        // Don't update if paused
+        if (this.state === GAME_STATE.PAUSED) {
+            return;
+        }
+        
         // Always update ground offset for smooth animation (even in menu)
         if (this.state === GAME_STATE.PLAYING) {
             const levelConfig = LEVELS[this.currentLevel];
@@ -1010,8 +1055,8 @@ class Game {
             // Update ground offset for animation
             this.groundOffset = (this.groundOffset + speed) % CONFIG.GROUND_TEXTURE_SIZE;
 
-            // Spawn obstacles (more obstacles, slower in demo)
-            const baseSpawnRate = levelConfig.spawnRate * 1.3; // 30% more obstacles
+            // Spawn obstacles (much more obstacles for difficulty)
+            const baseSpawnRate = levelConfig.spawnRate * 2.0; // 100% more obstacles (doubled)
             const spawnRate = this.demoMode ? baseSpawnRate * 0.85 : baseSpawnRate;
             if (Math.random() < spawnRate) {
                 this.spawnObstacle();
@@ -1141,6 +1186,24 @@ class Game {
         const scoreText = `Score: ${this.score}`;
         const scoreWidth = this.ctx.measureText(scoreText).width;
         this.ctx.fillText(scoreText, CONFIG.CANVAS_WIDTH - scoreWidth - 10, uiY);
+        
+        // Pause button (under Score)
+        const pauseY = uiY + (this.isMobile ? 20 : 25);
+        const pauseSize = this.isMobile ? 20 : 24;
+        const pauseX = CONFIG.CANVAS_WIDTH - scoreWidth - 10;
+        
+        // Draw pause button (two vertical bars)
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.fillRect(pauseX - pauseSize - 5, pauseY - pauseSize / 2, pauseSize / 3, pauseSize);
+        this.ctx.fillRect(pauseX - pauseSize - 5 + pauseSize / 2, pauseY - pauseSize / 2, pauseSize / 3, pauseSize);
+        
+        // Store pause button bounds for click detection
+        this.pauseButtonBounds = {
+            x: pauseX - pauseSize - 5,
+            y: pauseY - pauseSize / 2,
+            width: pauseSize,
+            height: pauseSize
+        };
         
         // Lives display
         const livesY = this.isMobile ? 130 : 80;
@@ -1349,6 +1412,14 @@ class Game {
             this.obstacles.forEach(obstacle => obstacle.draw(this.ctx, LEVELS[this.currentLevel]));
             this.player.draw(this.ctx);
             this.drawUI();
+        } else if (this.state === GAME_STATE.PAUSED) {
+            // Draw game in background when paused
+            this.drawBackground();
+            this.drawGround();
+            this.obstacles.forEach(obstacle => obstacle.draw(this.ctx, LEVELS[this.currentLevel]));
+            this.player.draw(this.ctx);
+            this.drawUI();
+            this.drawPauseScreen();
         } else if (this.state === GAME_STATE.LEVEL_COMPLETE) {
             this.drawBackground();
             this.drawGround();
@@ -1363,6 +1434,23 @@ class Game {
         } else if (this.state === GAME_STATE.ALL_COMPLETE) {
             this.drawAllComplete();
         }
+    }
+    
+    drawPauseScreen() {
+        // Semi-transparent overlay
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
+        
+        // Pause text
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.font = 'bold 36px monospace';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('PAUSED', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 20);
+        
+        this.ctx.font = '18px monospace';
+        this.ctx.fillText('Tap to Resume', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 20);
+        
+        this.ctx.textAlign = 'left';
     }
 
     gameLoop() {
