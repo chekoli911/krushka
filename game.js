@@ -544,8 +544,48 @@ class Game {
         };
         window.addEventListener('keydown', testHandler);
 
+        // Helper function to check if coordinates are in pause button area
+        const isInPauseArea = (clientX, clientY) => {
+            if (this.state !== GAME_STATE.PLAYING) {
+                return false;
+            }
+            
+            // Calculate pause button bounds if not set yet (fallback)
+            let pauseBounds = this.pauseButtonBounds;
+            if (!pauseBounds) {
+                const pauseAreaSize = this.isMobile ? 100 : 120;
+                pauseBounds = {
+                    x: CONFIG.CANVAS_WIDTH - pauseAreaSize,
+                    y: 0,
+                    width: pauseAreaSize,
+                    height: pauseAreaSize
+                };
+            }
+            
+            const rect = this.canvas.getBoundingClientRect();
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+            const scaleX = this.canvas.width / rect.width;
+            const scaleY = this.canvas.height / rect.height;
+            const canvasX = x * scaleX;
+            const canvasY = y * scaleY;
+            
+            return canvasX >= pauseBounds.x &&
+                   canvasX <= pauseBounds.x + pauseBounds.width &&
+                   canvasY >= pauseBounds.y &&
+                   canvasY <= pauseBounds.y + pauseBounds.height;
+        };
+
         // Mouse/Touch - start
         this.canvas.addEventListener('mousedown', (e) => {
+            // Check if click is in pause button area first
+            if (isInPauseArea(e.clientX, e.clientY)) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.togglePause();
+                return;
+            }
+            
             e.preventDefault();
             this.focusCanvas();
             this.resetDemoTimer(); // Reset timer on interaction
@@ -554,6 +594,17 @@ class Game {
         });
 
         this.canvas.addEventListener('touchstart', (e) => {
+            // Check if touch is in pause button area first
+            if (e.touches && e.touches.length > 0) {
+                const touch = e.touches[0];
+                if (isInPauseArea(touch.clientX, touch.clientY)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.togglePause();
+                    return;
+                }
+            }
+            
             e.preventDefault();
             this.focusCanvas();
             this.resetDemoTimer(); // Reset timer on interaction
@@ -1265,9 +1316,10 @@ class Game {
     drawUI() {
         const levelConfig = LEVELS[this.currentLevel];
         const edgeOffset = 40; // 40px offset from edge
-        const uiY = this.isMobile ? 160 : 100; // Level position
-        const uiY2 = this.isMobile ? 120 : 80; // Level name position (above Level)
-        const livesY = this.isMobile ? 140 : 90; // Lives position
+        const uiY = this.isMobile ? 140 : 100; // Level position
+        const uiY2 = this.isMobile ? 100 : 80; // Level name position (100px from top on mobile)
+        const livesY = this.isMobile ? 120 : 90; // Lives position (120px from top on mobile)
+        const scoreY = this.isMobile ? 100 : 80; // Score position (100px from top on mobile)
         
         // Level indicator (left side with 40px offset)
         this.ctx.fillStyle = '#FFFFFF';
