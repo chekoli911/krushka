@@ -388,7 +388,8 @@ class Game {
         
         this.state = GAME_STATE.MENU;
         this.currentLevel = 0;
-        this.score = 0;
+        this.score = 0; // Current level score
+        this.totalScore = 0; // Total score across all levels
         this.distance = 0;
         this.lives = 3; // Player lives (reduced to 3)
         this.player = null;
@@ -729,7 +730,8 @@ class Game {
         
         this.state = GAME_STATE.PLAYING;
         this.currentLevel = 0;
-        this.score = 0;
+        this.score = 0; // Reset level score
+        this.totalScore = 0; // Reset total score
         this.distance = 0;
         this.lives = 3; // Reset lives to 3
         this.player = new Player();
@@ -1171,6 +1173,8 @@ class Game {
             // Check level complete - use score instead of distance
             const targetScore = 350; // Fixed score target for all levels
             if (this.score >= targetScore) {
+                // Add current level score to total score
+                this.totalScore += this.score;
                 if (this.demoMode) {
                     // In demo mode, automatically go to next level (looping)
                     this.nextLevel();
@@ -1258,31 +1262,25 @@ class Game {
     drawUI() {
         const levelConfig = LEVELS[this.currentLevel];
         
-        // Level indicator (moved closer to center)
-        const uiY = this.isMobile ? 120 : 60; // Lower and closer to center
-        const uiY2 = this.isMobile ? 140 : 85; // Lower and closer to center
-        
-        // Calculate center positions for better alignment
-        const centerX = CONFIG.CANVAS_WIDTH / 2;
-        const leftOffset = this.isMobile ? 30 : 50; // Distance from center for left UI
-        const rightOffset = this.isMobile ? 30 : 50; // Distance from center for right UI
+        // Level indicator (left side with 10px offset from edge)
+        const uiY = this.isMobile ? 120 : 60;
+        const uiY2 = this.isMobile ? 140 : 85;
+        const edgeOffset = 10; // 10px offset from edge
         
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = this.isMobile ? 'bold 16px monospace' : 'bold 20px monospace';
         const levelText = `Level: ${this.currentLevel + 1}/5`;
-        const levelTextWidth = this.ctx.measureText(levelText).width;
-        const levelX = Math.max(5, centerX - leftOffset - levelTextWidth / 2); // Closer to center
+        const levelX = edgeOffset; // Left side with 10px offset
         this.ctx.fillText(levelText, levelX, uiY);
         this.ctx.font = this.isMobile ? '14px monospace' : '18px monospace';
-        const nameTextWidth = this.ctx.measureText(levelConfig.name).width;
-        const nameX = Math.max(5, centerX - leftOffset - nameTextWidth / 2); // Closer to center
+        const nameX = edgeOffset; // Left side with 10px offset
         this.ctx.fillText(levelConfig.name, nameX, uiY2);
 
-        // Score (moved closer to center from right)
+        // Score (right side with 10px offset from edge)
         this.ctx.font = this.isMobile ? 'bold 16px monospace' : 'bold 20px monospace';
         const scoreText = `Score: ${this.score}`;
         const scoreWidth = this.ctx.measureText(scoreText).width;
-        const scoreX = Math.min(CONFIG.CANVAS_WIDTH - 5, centerX + rightOffset - scoreWidth / 2); // Closer to center
+        const scoreX = CONFIG.CANVAS_WIDTH - scoreWidth - edgeOffset; // Right side with 10px offset
         this.ctx.fillText(scoreText, scoreX, uiY);
         
         // Pause button (under Score) - ensure it doesn't go off screen
@@ -1306,13 +1304,12 @@ class Game {
             height: pauseAreaSize // Large height (entire top right corner)
         };
         
-        // Lives display - moved lower and closer to center
+        // Lives display (left side with 10px offset from edge)
         const livesY = this.isMobile ? 160 : 110;
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = this.isMobile ? '14px monospace' : '16px monospace';
         const livesText = 'Lives:';
-        const livesTextWidth = this.ctx.measureText(livesText).width;
-        const livesX = Math.max(5, centerX - leftOffset - livesTextWidth / 2); // Closer to center
+        const livesX = edgeOffset; // Left side with 10px offset
         this.ctx.fillText(livesText, livesX, livesY);
         
         // Draw hearts for lives (positioned right after "Lives:" text)
@@ -1465,6 +1462,9 @@ class Game {
     }
 
     drawGameOver() {
+        // Add current level score to total before showing
+        const finalTotalScore = this.totalScore + this.score;
+        
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
         this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
 
@@ -1475,7 +1475,7 @@ class Game {
         
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = '20px monospace';
-        this.ctx.fillText(`Final Score: ${this.score}`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 20);
+        this.ctx.fillText(`Final Score: ${finalTotalScore}`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 20);
         this.ctx.font = '18px monospace';
         this.ctx.fillText('Tap to Restart', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 40);
 
@@ -1494,6 +1494,8 @@ class Game {
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = '18px monospace';
         this.ctx.fillText('You finished all 5 levels!', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 40);
+        this.ctx.font = '20px monospace';
+        this.ctx.fillText(`Final Score: ${this.totalScore}`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2);
         this.ctx.font = '20px monospace';
         this.ctx.fillText(`Final Score: ${this.score}`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2);
         this.ctx.font = '16px monospace';
