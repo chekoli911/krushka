@@ -634,9 +634,11 @@ class Game {
         } else if (this.state === GAME_STATE.LEVEL_COMPLETE) {
             this.nextLevel();
         } else if (this.state === GAME_STATE.GAME_OVER) {
-            this.restartLevel();
+            // Reload page to restart game
+            window.location.reload();
         } else if (this.state === GAME_STATE.ALL_COMPLETE) {
-            this.restartGame();
+            // Reload page to restart game
+            window.location.reload();
         }
     }
 
@@ -994,16 +996,8 @@ class Game {
         this.lives--;
         
         if (this.lives <= 0) {
-            // No lives left - restart from level 1
-            this.currentLevel = 0;
-            this.lives = 3;
-            this.score = 0;
-            this.distance = 0;
-            this.obstacles = [];
-            this.lastSpawnTime = 0;
-            this.lastObstacleX = -1000;
-            this.player = new Player();
-            this.state = GAME_STATE.PLAYING;
+            // No lives left - show GAME OVER screen
+            this.state = GAME_STATE.GAME_OVER;
         } else {
             // Still have lives - continue from current position
             // Small invincibility period - remove obstacle that caused collision
@@ -1264,26 +1258,31 @@ class Game {
     drawUI() {
         const levelConfig = LEVELS[this.currentLevel];
         
-        // Level indicator (moved lower and closer to center)
+        // Level indicator (moved closer to center)
         const uiY = this.isMobile ? 120 : 60; // Lower and closer to center
         const uiY2 = this.isMobile ? 140 : 85; // Lower and closer to center
+        
+        // Calculate center positions for better alignment
+        const centerX = CONFIG.CANVAS_WIDTH / 2;
+        const leftOffset = this.isMobile ? 30 : 50; // Distance from center for left UI
+        const rightOffset = this.isMobile ? 30 : 50; // Distance from center for right UI
         
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = this.isMobile ? 'bold 16px monospace' : 'bold 20px monospace';
         const levelText = `Level: ${this.currentLevel + 1}/5`;
         const levelTextWidth = this.ctx.measureText(levelText).width;
-        const levelX = Math.max(5, Math.min(10, CONFIG.CANVAS_WIDTH - levelTextWidth - 5)); // Ensure it's on screen
+        const levelX = Math.max(5, centerX - leftOffset - levelTextWidth / 2); // Closer to center
         this.ctx.fillText(levelText, levelX, uiY);
         this.ctx.font = this.isMobile ? '14px monospace' : '18px monospace';
         const nameTextWidth = this.ctx.measureText(levelConfig.name).width;
-        const nameX = Math.max(5, Math.min(10, CONFIG.CANVAS_WIDTH - nameTextWidth - 5)); // Ensure it's on screen
+        const nameX = Math.max(5, centerX - leftOffset - nameTextWidth / 2); // Closer to center
         this.ctx.fillText(levelConfig.name, nameX, uiY2);
 
-        // Score (moved lower on mobile, normal on desktop) - ensure it doesn't go off screen
+        // Score (moved closer to center from right)
         this.ctx.font = this.isMobile ? 'bold 16px monospace' : 'bold 20px monospace';
         const scoreText = `Score: ${this.score}`;
         const scoreWidth = this.ctx.measureText(scoreText).width;
-        const scoreX = Math.min(CONFIG.CANVAS_WIDTH - scoreWidth - 10, CONFIG.CANVAS_WIDTH - 5);
+        const scoreX = Math.min(CONFIG.CANVAS_WIDTH - 5, centerX + rightOffset - scoreWidth / 2); // Closer to center
         this.ctx.fillText(scoreText, scoreX, uiY);
         
         // Pause button (under Score) - ensure it doesn't go off screen
@@ -1313,7 +1312,7 @@ class Game {
         this.ctx.font = this.isMobile ? '14px monospace' : '16px monospace';
         const livesText = 'Lives:';
         const livesTextWidth = this.ctx.measureText(livesText).width;
-        const livesX = Math.max(5, Math.min(10, CONFIG.CANVAS_WIDTH - livesTextWidth - 50)); // Ensure it's on screen
+        const livesX = Math.max(5, centerX - leftOffset - livesTextWidth / 2); // Closer to center
         this.ctx.fillText(livesText, livesX, livesY);
         
         // Draw hearts for lives (positioned right after "Lives:" text)
@@ -1466,19 +1465,19 @@ class Game {
     }
 
     drawGameOver() {
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
         this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
 
         this.ctx.fillStyle = '#E74C3C';
-        this.ctx.font = 'bold 28px monospace';
+        this.ctx.font = 'bold 36px monospace';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText('Game Over!', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 60);
+        this.ctx.fillText('GAME OVER', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 60);
         
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = '20px monospace';
         this.ctx.fillText(`Final Score: ${this.score}`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 20);
-        this.ctx.font = '16px monospace';
-        this.ctx.fillText('Tap to Restart', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 20);
+        this.ctx.font = '18px monospace';
+        this.ctx.fillText('Tap to Restart', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 40);
 
         this.ctx.textAlign = 'left';
     }
@@ -1538,8 +1537,12 @@ class Game {
         } else if (this.state === GAME_STATE.GAME_OVER) {
             this.drawBackground();
             this.drawGround();
-            this.obstacles.forEach(obstacle => obstacle.draw(this.ctx, LEVELS[this.currentLevel]));
-            this.player.draw(this.ctx);
+            if (this.obstacles.length > 0) {
+                this.obstacles.forEach(obstacle => obstacle.draw(this.ctx, LEVELS[this.currentLevel]));
+            }
+            if (this.player) {
+                this.player.draw(this.ctx);
+            }
             this.drawGameOver();
         } else if (this.state === GAME_STATE.ALL_COMPLETE) {
             this.drawAllComplete();
