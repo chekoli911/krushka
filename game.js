@@ -574,15 +574,16 @@ class Game {
             const canvasX = x * scaleX;
             const canvasY = y * scaleY;
             
-            // Handle pause button click
+            // Handle pause button click - entire top right corner is clickable
             if (this.state === GAME_STATE.PLAYING && this.pauseButtonBounds) {
-                // Check if clicked on pause button
+                // Check if clicked in the top right corner area (larger clickable zone)
                 if (canvasX >= this.pauseButtonBounds.x &&
                     canvasX <= this.pauseButtonBounds.x + this.pauseButtonBounds.width &&
                     canvasY >= this.pauseButtonBounds.y &&
                     canvasY <= this.pauseButtonBounds.y + this.pauseButtonBounds.height) {
                     e.preventDefault();
                     e.stopPropagation();
+                    console.log('Pause button clicked!', canvasX, canvasY, this.pauseButtonBounds); // Debug log
                     this.togglePause();
                     return;
                 }
@@ -801,6 +802,20 @@ class Game {
             this.state = GAME_STATE.PLAYING;
         }
     }
+    
+    vibrate() {
+        // Vibrate on mobile devices when collision occurs
+        if (this.isMobile && navigator.vibrate) {
+            try {
+                // Vibration pattern: short vibration for collision
+                // Pattern: [vibrate, pause, vibrate] - 100ms vibrate, 50ms pause, 100ms vibrate
+                navigator.vibrate([100, 50, 100]);
+            } catch (e) {
+                // Ignore vibration errors (some browsers may not support it)
+                console.log('Vibration not supported or failed:', e);
+            }
+        }
+    }
 
     spawnObstacle() {
         const levelConfig = LEVELS[this.currentLevel];
@@ -951,6 +966,7 @@ class Game {
                 
                 if (isOverPit && playerBottomY >= CONFIG.GROUND_Y) {
                     // Player is over pit and on/below ground level - fell into pit
+                    this.vibrate(); // Vibrate on mobile devices
                     this.loseLife();
                     return true;
                 }
@@ -964,6 +980,7 @@ class Game {
                     playerBounds.y + playerBounds.height > obstacleBounds.y) {
                     
                     // Collision detected
+                    this.vibrate(); // Vibrate on mobile devices
                     this.loseLife();
                     return true;
                 }
@@ -1247,9 +1264,9 @@ class Game {
     drawUI() {
         const levelConfig = LEVELS[this.currentLevel];
         
-        // Level indicator (moved lower on mobile, normal on desktop) - ensure it doesn't go off screen
-        const uiY = this.isMobile ? 90 : 30; // Even lower on mobile: 90 instead of 60
-        const uiY2 = this.isMobile ? 110 : 55; // Even lower on mobile: 110 instead of 80
+        // Level indicator (moved lower and closer to center)
+        const uiY = this.isMobile ? 120 : 60; // Lower and closer to center
+        const uiY2 = this.isMobile ? 140 : 85; // Lower and closer to center
         
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = this.isMobile ? 'bold 16px monospace' : 'bold 20px monospace';
@@ -1280,16 +1297,18 @@ class Game {
         this.ctx.fillRect(pauseButtonX, pauseY - pauseSize / 2, pauseSize / 3, pauseSize);
         this.ctx.fillRect(pauseButtonX + pauseSize / 2, pauseY - pauseSize / 2, pauseSize / 3, pauseSize);
         
-        // Store pause button bounds for click detection
+        // Store pause button bounds for click detection - ENTIRE TOP RIGHT CORNER
+        // Make the entire top right corner clickable (larger area)
+        const pauseAreaSize = this.isMobile ? 80 : 100; // Large clickable area
         this.pauseButtonBounds = {
-            x: pauseButtonX,
-            y: pauseY - pauseSize / 2,
-            width: pauseSize,
-            height: pauseSize
+            x: CONFIG.CANVAS_WIDTH - pauseAreaSize, // Start from right edge
+            y: 0, // Start from top
+            width: pauseAreaSize, // Large width
+            height: pauseAreaSize // Large height (entire top right corner)
         };
         
-        // Lives display - ensure it doesn't go off screen
-        const livesY = this.isMobile ? 130 : 80;
+        // Lives display - moved lower and closer to center
+        const livesY = this.isMobile ? 160 : 110;
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = this.isMobile ? '14px monospace' : '16px monospace';
         const livesText = 'Lives:';
