@@ -1158,7 +1158,7 @@ class Game {
             }
 
             // Check level complete - use score instead of distance
-            const targetScore = 750; // Fixed score target for all levels
+            const targetScore = 350; // Fixed score target for all levels
             if (this.score >= targetScore) {
                 if (this.demoMode) {
                     // In demo mode, automatically go to next level (looping)
@@ -1438,7 +1438,7 @@ class Game {
         if (this.currentLevel < LEVELS.length - 1) {
             this.ctx.fillText(`Level ${this.currentLevel + 1} Complete!`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 60);
             this.ctx.font = '20px monospace';
-            this.ctx.fillText(`Score: ${this.score} / 750`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 20);
+            this.ctx.fillText(`Score: ${this.score} / 350`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 20);
             this.ctx.font = '16px monospace';
             this.ctx.fillText('Tap for Next Level', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 20);
         }
