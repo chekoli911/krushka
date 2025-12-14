@@ -1265,9 +1265,9 @@ class Game {
     drawUI() {
         const levelConfig = LEVELS[this.currentLevel];
         const edgeOffset = 40; // 40px offset from edge
-        const uiY = this.isMobile ? 180 : 100; // Level position (lower on mobile)
-        const uiY2 = this.isMobile ? 200 : 120; // Level name position
-        const livesY = this.isMobile ? 180 : 100; // Lives position (same as Level on mobile)
+        const uiY = this.isMobile ? 160 : 100; // Level position
+        const uiY2 = this.isMobile ? 120 : 80; // Level name position (above Level)
+        const livesY = this.isMobile ? 140 : 90; // Lives position
         
         // Level indicator (left side with 40px offset)
         this.ctx.fillStyle = '#FFFFFF';
