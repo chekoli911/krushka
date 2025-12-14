@@ -1264,29 +1264,29 @@ class Game {
 
     drawUI() {
         const levelConfig = LEVELS[this.currentLevel];
-        const edgeOffset = 10; // 10px offset from edge
-        const uiY = this.isMobile ? 80 : 40;
-        const uiY2 = this.isMobile ? 100 : 60;
-        const livesY = this.isMobile ? 120 : 80;
+        const edgeOffset = 40; // 40px offset from edge
+        const uiY = this.isMobile ? 180 : 100; // Level position (lower on mobile)
+        const uiY2 = this.isMobile ? 200 : 120; // Level name position
+        const livesY = this.isMobile ? 180 : 100; // Lives position (same as Level on mobile)
         
-        // Level indicator (left side)
+        // Level indicator (left side with 40px offset)
         this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.font = this.isMobile ? 'bold 14px monospace' : 'bold 18px monospace';
+        this.ctx.font = this.isMobile ? 'bold 15px monospace' : 'bold 18px monospace'; // 15px for headers
         this.ctx.fillText(`Level: ${this.currentLevel + 1}/5`, edgeOffset, uiY);
         
-        this.ctx.font = this.isMobile ? '12px monospace' : '16px monospace';
+        this.ctx.font = this.isMobile ? '13px monospace' : '16px monospace'; // 13px for text
         this.ctx.fillText(levelConfig.name, edgeOffset, uiY2);
 
-        // Score (right side)
-        this.ctx.font = this.isMobile ? 'bold 14px monospace' : 'bold 18px monospace';
+        // Score (right side with 40px offset)
+        this.ctx.font = this.isMobile ? 'bold 15px monospace' : 'bold 18px monospace'; // 15px for headers
         const scoreText = `Score: ${this.score}`;
         const scoreWidth = this.ctx.measureText(scoreText).width;
-        const scoreX = CONFIG.CANVAS_WIDTH - scoreWidth - edgeOffset;
+        const scoreX = CONFIG.CANVAS_WIDTH - scoreWidth - edgeOffset; // 40px from right edge
         this.ctx.fillText(scoreText, scoreX, uiY);
         
         // Pause button (under Score) - visible icon
-        const pauseY = uiY + (this.isMobile ? 18 : 22);
-        const pauseSize = this.isMobile ? 16 : 20;
+        const pauseY = uiY + (this.isMobile ? 20 : 25);
+        const pauseSize = this.isMobile ? 18 : 22;
         const pauseButtonX = scoreX;
         
         this.ctx.fillStyle = '#FFFFFF';
@@ -1302,16 +1302,16 @@ class Game {
             height: pauseAreaSize
         };
         
-        // Lives display (left side)
-        this.ctx.font = this.isMobile ? '12px monospace' : '14px monospace';
+        // Lives display (left side with 40px offset)
+        this.ctx.font = this.isMobile ? '13px monospace' : '14px monospace'; // 13px for text
         const livesText = 'Lives:';
         const livesTextWidth = this.ctx.measureText(livesText).width;
         this.ctx.fillText(livesText, edgeOffset, livesY);
         
         // Hearts
-        const heartSize = this.isMobile ? 10 : 12;
-        const heartSpacing = heartSize + 3;
-        const heartsStartX = edgeOffset + livesTextWidth + 6;
+        const heartSize = this.isMobile ? 12 : 14;
+        const heartSpacing = heartSize + 4;
+        const heartsStartX = edgeOffset + livesTextWidth + 8;
         
         for (let i = 0; i < 3; i++) {
             const heartX = heartsStartX + (i * heartSpacing);
