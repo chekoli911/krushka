@@ -412,8 +412,11 @@ class Game {
         this.start();
         
         // Log version for debugging
-        console.log('Krushka Game v2.0 - Updated:', new Date().toISOString());
+        console.log('Krushka Game v2.1 - Updated:', new Date().toISOString());
         console.log('Speed:', CONFIG.BASE_SPEED, 'Spawn Rate Multiplier: 2.5x');
+        console.log('Canvas size:', CONFIG.CANVAS_WIDTH, 'x', CONFIG.CANVAS_HEIGHT);
+        console.log('Is mobile:', this.isMobile);
+        console.log('Initial state:', this.state);
     }
 
     setupCanvas() {
@@ -1261,78 +1264,58 @@ class Game {
 
     drawUI() {
         const levelConfig = LEVELS[this.currentLevel];
-        
-        // Level indicator (left side with 10px offset from edge)
-        const uiY = this.isMobile ? 120 : 60;
-        const uiY2 = this.isMobile ? 140 : 85;
         const edgeOffset = 10; // 10px offset from edge
+        const uiY = this.isMobile ? 80 : 40;
+        const uiY2 = this.isMobile ? 100 : 60;
+        const livesY = this.isMobile ? 120 : 80;
         
+        // Level indicator (left side)
         this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.font = this.isMobile ? 'bold 16px monospace' : 'bold 20px monospace';
-        const levelText = `Level: ${this.currentLevel + 1}/5`;
-        const levelX = edgeOffset; // Left side with 10px offset
-        this.ctx.fillText(levelText, levelX, uiY);
-        this.ctx.font = this.isMobile ? '14px monospace' : '18px monospace';
-        const nameX = edgeOffset; // Left side with 10px offset
-        this.ctx.fillText(levelConfig.name, nameX, uiY2);
+        this.ctx.font = this.isMobile ? 'bold 14px monospace' : 'bold 18px monospace';
+        this.ctx.fillText(`Level: ${this.currentLevel + 1}/5`, edgeOffset, uiY);
+        
+        this.ctx.font = this.isMobile ? '12px monospace' : '16px monospace';
+        this.ctx.fillText(levelConfig.name, edgeOffset, uiY2);
 
-        // Score (right side with 10px offset from edge)
-        this.ctx.font = this.isMobile ? 'bold 16px monospace' : 'bold 20px monospace';
+        // Score (right side)
+        this.ctx.font = this.isMobile ? 'bold 14px monospace' : 'bold 18px monospace';
         const scoreText = `Score: ${this.score}`;
         const scoreWidth = this.ctx.measureText(scoreText).width;
-        const scoreX = CONFIG.CANVAS_WIDTH - scoreWidth - edgeOffset; // Right side with 10px offset
+        const scoreX = CONFIG.CANVAS_WIDTH - scoreWidth - edgeOffset;
         this.ctx.fillText(scoreText, scoreX, uiY);
         
-        // Pause button (under Score) - ensure it doesn't go off screen
-        const pauseY = uiY + (this.isMobile ? 20 : 25);
-        const pauseSize = this.isMobile ? 20 : 24;
-        const pauseX = scoreX;
-        const pauseButtonX = Math.max(5, pauseX - pauseSize - 5); // Ensure it's on screen
+        // Pause button (under Score) - visible icon
+        const pauseY = uiY + (this.isMobile ? 18 : 22);
+        const pauseSize = this.isMobile ? 16 : 20;
+        const pauseButtonX = scoreX;
         
-        // Draw pause button (two vertical bars)
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.fillRect(pauseButtonX, pauseY - pauseSize / 2, pauseSize / 3, pauseSize);
         this.ctx.fillRect(pauseButtonX + pauseSize / 2, pauseY - pauseSize / 2, pauseSize / 3, pauseSize);
         
-        // Store pause button bounds for click detection - ENTIRE TOP RIGHT CORNER
-        // Make the entire top right corner clickable (larger area)
-        const pauseAreaSize = this.isMobile ? 80 : 100; // Large clickable area
+        // ENTIRE TOP RIGHT CORNER is clickable for pause
+        const pauseAreaSize = this.isMobile ? 100 : 120;
         this.pauseButtonBounds = {
-            x: CONFIG.CANVAS_WIDTH - pauseAreaSize, // Start from right edge
-            y: 0, // Start from top
-            width: pauseAreaSize, // Large width
-            height: pauseAreaSize // Large height (entire top right corner)
+            x: CONFIG.CANVAS_WIDTH - pauseAreaSize,
+            y: 0,
+            width: pauseAreaSize,
+            height: pauseAreaSize
         };
         
-        // Lives display (left side with 10px offset from edge)
-        const livesY = this.isMobile ? 160 : 110;
-        this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.font = this.isMobile ? '14px monospace' : '16px monospace';
+        // Lives display (left side)
+        this.ctx.font = this.isMobile ? '12px monospace' : '14px monospace';
         const livesText = 'Lives:';
-        const livesX = edgeOffset; // Left side with 10px offset
-        this.ctx.fillText(livesText, livesX, livesY);
+        const livesTextWidth = this.ctx.measureText(livesText).width;
+        this.ctx.fillText(livesText, edgeOffset, livesY);
         
-        // Draw hearts for lives (positioned right after "Lives:" text)
-        const heartSize = this.isMobile ? 12 : 14;
-        const heartSpacing = heartSize + 4;
-        const heartsStartX = livesX + livesTextWidth + 8; // Right after "Lives:" with spacing
-        // Ensure hearts don't go off screen
-        const maxHeartsX = CONFIG.CANVAS_WIDTH - (heartSize * 3 + heartSpacing * 2) - 5;
-        const adjustedHeartsStartX = Math.min(heartsStartX, maxHeartsX);
+        // Hearts
+        const heartSize = this.isMobile ? 10 : 12;
+        const heartSpacing = heartSize + 3;
+        const heartsStartX = edgeOffset + livesTextWidth + 6;
         
-        for (let i = 0; i < 3; i++) { // 3 lives total
-            const heartX = adjustedHeartsStartX + (i * heartSpacing);
-            // Ensure heart doesn't go off screen
-            if (heartX + heartSize > CONFIG.CANVAS_WIDTH - 5) break;
-            
-            if (i < this.lives) {
-                // Full heart (red)
-                this.ctx.fillStyle = '#E74C3C';
-            } else {
-                // Empty heart (gray)
-                this.ctx.fillStyle = '#555555';
-            }
-            // Draw simple heart shape
+        for (let i = 0; i < 3; i++) {
+            const heartX = heartsStartX + (i * heartSpacing);
+            this.ctx.fillStyle = (i < this.lives) ? '#E74C3C' : '#555555';
             this.drawHeart(this.ctx, heartX, livesY - heartSize / 2, heartSize);
         }
         
@@ -1379,9 +1362,13 @@ class Game {
     }
 
     drawMenu() {
-        // Draw background first
-        this.drawBackground();
-        this.drawGround();
+        try {
+            // Draw background first
+            this.drawBackground();
+            this.drawGround();
+        } catch (error) {
+            console.error('Error drawing menu background:', error);
+        }
 
         // Title with shadow for visibility (adjusted for vertical)
         this.ctx.textAlign = 'center';
@@ -1496,8 +1483,6 @@ class Game {
         this.ctx.fillText('You finished all 5 levels!', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 40);
         this.ctx.font = '20px monospace';
         this.ctx.fillText(`Final Score: ${this.totalScore}`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2);
-        this.ctx.font = '20px monospace';
-        this.ctx.fillText(`Final Score: ${this.score}`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2);
         this.ctx.font = '16px monospace';
         this.ctx.fillText('Tap to Restart', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 40);
 
@@ -1569,9 +1554,13 @@ class Game {
     }
 
     gameLoop() {
-        this.update();
-        this.draw();
-        this.animationId = requestAnimationFrame(() => this.gameLoop());
+        try {
+            this.update();
+            this.draw();
+            this.animationId = requestAnimationFrame(() => this.gameLoop());
+        } catch (error) {
+            console.error('Error in game loop:', error);
+        }
     }
 }
 
