@@ -409,6 +409,10 @@ class Game {
         this.setupControls();
         this.loadBackgroundImages();
         this.start();
+        
+        // Log version for debugging
+        console.log('Krushka Game v2.0 - Updated:', new Date().toISOString());
+        console.log('Speed:', CONFIG.BASE_SPEED, 'Spawn Rate Multiplier: 2.5x');
     }
 
     setupCanvas() {
@@ -1015,6 +1019,7 @@ class Game {
                 }
                 
                 // ALWAYS update lastObstacleX to the rightmost remaining obstacle
+                // CRITICAL: This ensures obstacles continue spawning after life loss
                 if (this.obstacles.length > 0) {
                     const rightmostObstacle = this.obstacles.reduce((rightmost, obs) => {
                         const obsEndX = obs.x + (obs.type === 'pit' ? CONFIG.PIT_WIDTH : CONFIG.OBSTACLE_WIDTH);
@@ -1025,12 +1030,12 @@ class Game {
                     this.lastObstacleX = Math.max(this.lastObstacleX, rightmostObstacle);
                 } else {
                     // No obstacles left - set to allow immediate spawning
-                    // Use current position minus safe distance to allow new spawns
-                    this.lastObstacleX = Math.max(CONFIG.CANVAS_WIDTH - 400, this.lastObstacleX - 200);
+                    // Reset to a position that allows new obstacles to spawn
+                    this.lastObstacleX = Math.min(CONFIG.CANVAS_WIDTH - 300, Math.max(CONFIG.CANVAS_WIDTH - 500, this.lastObstacleX - 100));
                 }
             } else {
-                // No obstacles at all - reset to allow spawning
-                this.lastObstacleX = CONFIG.CANVAS_WIDTH - 200;
+                // No obstacles at all - reset to allow spawning immediately
+                this.lastObstacleX = CONFIG.CANVAS_WIDTH - 300;
             }
         }
     }
