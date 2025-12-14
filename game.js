@@ -62,7 +62,7 @@ const CONFIG = {
     PLAYER_WIDTH: isMobileDevice() ? 35 : 40,
     PLAYER_HEIGHT: isMobileDevice() ? 45 : 50,
     PLAYER_START_X: isMobileDevice() ? 30 : 100,
-    BASE_SPEED: 3,
+    BASE_SPEED: 3.3, // Increased by 10% (3 * 1.1 = 3.3)
     OBSTACLE_WIDTH: isMobileDevice() ? 35 : 40,
     OBSTACLE_HEIGHT: isMobileDevice() ? 35 : 40,
     PIT_WIDTH: isMobileDevice() ? 70 : 80,
@@ -559,30 +559,35 @@ class Game {
             // Reset demo timer on any click
             this.resetDemoTimer();
             
+            // Get click coordinates
+            const rect = this.canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            // Scale coordinates to canvas coordinates
+            const scaleX = this.canvas.width / rect.width;
+            const scaleY = this.canvas.height / rect.height;
+            const canvasX = x * scaleX;
+            const canvasY = y * scaleY;
+            
             // Handle pause button click
             if (this.state === GAME_STATE.PLAYING && this.pauseButtonBounds) {
-                const rect = this.canvas.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-                
-                // Scale coordinates to canvas coordinates
-                const scaleX = this.canvas.width / rect.width;
-                const scaleY = this.canvas.height / rect.height;
-                const canvasX = x * scaleX;
-                const canvasY = y * scaleY;
-                
                 // Check if clicked on pause button
                 if (canvasX >= this.pauseButtonBounds.x &&
                     canvasX <= this.pauseButtonBounds.x + this.pauseButtonBounds.width &&
                     canvasY >= this.pauseButtonBounds.y &&
                     canvasY <= this.pauseButtonBounds.y + this.pauseButtonBounds.height) {
+                    e.preventDefault();
+                    e.stopPropagation();
                     this.togglePause();
                     return;
                 }
             }
             
-            // Handle pause/unpause on click during paused state
+            // Handle pause/unpause on click during paused state (anywhere on screen)
             if (this.state === GAME_STATE.PAUSED) {
+                e.preventDefault();
+                e.stopPropagation();
                 this.togglePause();
                 return;
             }
@@ -802,11 +807,29 @@ class Game {
         const minDistance = 280; // Minimum distance between obstacles
         const safeDistance = 320; // Safe distance for comfortable gameplay
         const fireSequenceDistance = 200; // Distance for fire sequences (jumpable)
+        const doubleObstacleDistance = 150; // Distance for double obstacles (levels 4-5)
+        const tripleObstacleDistance = 120; // Distance for triple obstacles (levels 4-5)
         
         // Check if we can spawn obstacle (enough distance from last one)
         const distanceFromLast = x - this.lastObstacleX;
         if (distanceFromLast < minDistance) {
             return; // Don't spawn if too close
+        }
+        
+        // For levels 4 and 5, check for double/triple obstacles
+        const isLevel4Or5 = this.currentLevel >= 3; // Level 4 (index 3) or Level 5 (index 4)
+        let spawnMultiple = false;
+        let obstacleCount = 1;
+        
+        if (isLevel4Or5) {
+            const rand = Math.random();
+            if (rand < 0.07) { // 7% chance for triple
+                obstacleCount = 3;
+                spawnMultiple = true;
+            } else if (rand < 0.25) { // 18% chance for double (0.07 + 0.18 = 0.25)
+                obstacleCount = 2;
+                spawnMultiple = true;
+            }
         }
         
         // Smart obstacle generation with fire sequences
@@ -819,6 +842,36 @@ class Game {
         const inFireSequence = lastObstacle && secondLastObstacle && 
                                lastObstacle.type === 'fire' && secondLastObstacle.type === 'fire';
         
+        // For multiple obstacles, alternate types
+        if (spawnMultiple) {
+            // Spawn multiple obstacles with alternating types
+            let currentX = x;
+            let lastType = lastObstacle ? lastObstacle.type : null;
+            
+            for (let i = 0; i < obstacleCount; i++) {
+                const obstacleDistance = i === 0 ? 0 : 
+                                       (i === 1 ? doubleObstacleDistance : tripleObstacleDistance);
+                
+                // Determine type - alternate between fire and pit
+                if (lastType === null) {
+                    // First obstacle in group - random
+                    type = Math.random() < 0.5 ? 'fire' : 'pit';
+                } else {
+                    // Alternate from previous type
+                    type = lastType === 'pit' ? 'fire' : 'pit';
+                }
+                
+                const obstacle = new Obstacle(currentX, type, this.currentLevel);
+                this.obstacles.push(obstacle);
+                const obstacleWidth = type === 'pit' ? CONFIG.PIT_WIDTH : CONFIG.OBSTACLE_WIDTH;
+                this.lastObstacleX = currentX + obstacleWidth;
+                lastType = type;
+                currentX = this.lastObstacleX + obstacleDistance;
+            }
+            return; // Done spawning multiple obstacles
+        }
+        
+        // Single obstacle logic
         // 40% chance to create fire sequence, 30% chance for pit (more obstacles)
         if (!inFireSequence && Math.random() < 0.4 && distanceFromLast >= fireSequenceDistance) {
             // Start fire sequence
@@ -960,6 +1013,24 @@ class Game {
                         this.obstacles.splice(index, 1);
                     }
                 }
+                
+                // ALWAYS update lastObstacleX to the rightmost remaining obstacle
+                if (this.obstacles.length > 0) {
+                    const rightmostObstacle = this.obstacles.reduce((rightmost, obs) => {
+                        const obsEndX = obs.x + (obs.type === 'pit' ? CONFIG.PIT_WIDTH : CONFIG.OBSTACLE_WIDTH);
+                        return obsEndX > rightmost ? obsEndX : rightmost;
+                    }, 0);
+                    // Use the maximum of current lastObstacleX and rightmost obstacle
+                    // This ensures spawning continues even if obstacle was removed
+                    this.lastObstacleX = Math.max(this.lastObstacleX, rightmostObstacle);
+                } else {
+                    // No obstacles left - set to allow immediate spawning
+                    // Use current position minus safe distance to allow new spawns
+                    this.lastObstacleX = Math.max(CONFIG.CANVAS_WIDTH - 400, this.lastObstacleX - 200);
+                }
+            } else {
+                // No obstacles at all - reset to allow spawning
+                this.lastObstacleX = CONFIG.CANVAS_WIDTH - 200;
             }
         }
     }
@@ -1055,8 +1126,8 @@ class Game {
             // Update ground offset for animation
             this.groundOffset = (this.groundOffset + speed) % CONFIG.GROUND_TEXTURE_SIZE;
 
-            // Spawn obstacles (much more obstacles for difficulty)
-            const baseSpawnRate = levelConfig.spawnRate * 2.0; // 100% more obstacles (doubled)
+            // Spawn obstacles (much more obstacles for difficulty - increased even more)
+            const baseSpawnRate = levelConfig.spawnRate * 2.5; // 150% more obstacles (2.5x)
             const spawnRate = this.demoMode ? baseSpawnRate * 0.85 : baseSpawnRate;
             if (Math.random() < spawnRate) {
                 this.spawnObstacle();
@@ -1171,54 +1242,69 @@ class Game {
     drawUI() {
         const levelConfig = LEVELS[this.currentLevel];
         
-        // Level indicator (moved lower on mobile, normal on desktop)
+        // Level indicator (moved lower on mobile, normal on desktop) - ensure it doesn't go off screen
         const uiY = this.isMobile ? 90 : 30; // Even lower on mobile: 90 instead of 60
         const uiY2 = this.isMobile ? 110 : 55; // Even lower on mobile: 110 instead of 80
         
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = this.isMobile ? 'bold 16px monospace' : 'bold 20px monospace';
-        this.ctx.fillText(`Level: ${this.currentLevel + 1}/5`, 10, uiY);
+        const levelText = `Level: ${this.currentLevel + 1}/5`;
+        const levelTextWidth = this.ctx.measureText(levelText).width;
+        const levelX = Math.max(5, Math.min(10, CONFIG.CANVAS_WIDTH - levelTextWidth - 5)); // Ensure it's on screen
+        this.ctx.fillText(levelText, levelX, uiY);
         this.ctx.font = this.isMobile ? '14px monospace' : '18px monospace';
-        this.ctx.fillText(levelConfig.name, 10, uiY2);
+        const nameTextWidth = this.ctx.measureText(levelConfig.name).width;
+        const nameX = Math.max(5, Math.min(10, CONFIG.CANVAS_WIDTH - nameTextWidth - 5)); // Ensure it's on screen
+        this.ctx.fillText(levelConfig.name, nameX, uiY2);
 
-        // Score (moved lower on mobile, normal on desktop)
+        // Score (moved lower on mobile, normal on desktop) - ensure it doesn't go off screen
         this.ctx.font = this.isMobile ? 'bold 16px monospace' : 'bold 20px monospace';
         const scoreText = `Score: ${this.score}`;
         const scoreWidth = this.ctx.measureText(scoreText).width;
-        this.ctx.fillText(scoreText, CONFIG.CANVAS_WIDTH - scoreWidth - 10, uiY);
+        const scoreX = Math.min(CONFIG.CANVAS_WIDTH - scoreWidth - 10, CONFIG.CANVAS_WIDTH - 5);
+        this.ctx.fillText(scoreText, scoreX, uiY);
         
-        // Pause button (under Score)
+        // Pause button (under Score) - ensure it doesn't go off screen
         const pauseY = uiY + (this.isMobile ? 20 : 25);
         const pauseSize = this.isMobile ? 20 : 24;
-        const pauseX = CONFIG.CANVAS_WIDTH - scoreWidth - 10;
+        const pauseX = scoreX;
+        const pauseButtonX = Math.max(5, pauseX - pauseSize - 5); // Ensure it's on screen
         
         // Draw pause button (two vertical bars)
         this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.fillRect(pauseX - pauseSize - 5, pauseY - pauseSize / 2, pauseSize / 3, pauseSize);
-        this.ctx.fillRect(pauseX - pauseSize - 5 + pauseSize / 2, pauseY - pauseSize / 2, pauseSize / 3, pauseSize);
+        this.ctx.fillRect(pauseButtonX, pauseY - pauseSize / 2, pauseSize / 3, pauseSize);
+        this.ctx.fillRect(pauseButtonX + pauseSize / 2, pauseY - pauseSize / 2, pauseSize / 3, pauseSize);
         
         // Store pause button bounds for click detection
         this.pauseButtonBounds = {
-            x: pauseX - pauseSize - 5,
+            x: pauseButtonX,
             y: pauseY - pauseSize / 2,
             width: pauseSize,
             height: pauseSize
         };
         
-        // Lives display
+        // Lives display - ensure it doesn't go off screen
         const livesY = this.isMobile ? 130 : 80;
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = this.isMobile ? '14px monospace' : '16px monospace';
-        this.ctx.fillText('Lives:', 10, livesY);
+        const livesText = 'Lives:';
+        const livesTextWidth = this.ctx.measureText(livesText).width;
+        const livesX = Math.max(5, Math.min(10, CONFIG.CANVAS_WIDTH - livesTextWidth - 50)); // Ensure it's on screen
+        this.ctx.fillText(livesText, livesX, livesY);
         
         // Draw hearts for lives (positioned right after "Lives:" text)
         const heartSize = this.isMobile ? 12 : 14;
         const heartSpacing = heartSize + 4;
-        const livesTextWidth = this.ctx.measureText('Lives:').width;
-        const heartsStartX = 10 + livesTextWidth + 8; // Right after "Lives:" with spacing
+        const heartsStartX = livesX + livesTextWidth + 8; // Right after "Lives:" with spacing
+        // Ensure hearts don't go off screen
+        const maxHeartsX = CONFIG.CANVAS_WIDTH - (heartSize * 3 + heartSpacing * 2) - 5;
+        const adjustedHeartsStartX = Math.min(heartsStartX, maxHeartsX);
         
         for (let i = 0; i < 3; i++) { // 3 lives total
-            const heartX = heartsStartX + (i * heartSpacing);
+            const heartX = adjustedHeartsStartX + (i * heartSpacing);
+            // Ensure heart doesn't go off screen
+            if (heartX + heartSize > CONFIG.CANVAS_WIDTH - 5) break;
+            
             if (i < this.lives) {
                 // Full heart (red)
                 this.ctx.fillStyle = '#E74C3C';
