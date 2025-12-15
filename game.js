@@ -1319,7 +1319,7 @@ class Game {
         const uiY = this.isMobile ? 140 : 100; // Level position
         const uiY2 = this.isMobile ? 100 : 80; // Level name position (100px from top on mobile)
         const livesY = this.isMobile ? 120 : 90; // Lives position (120px from top on mobile)
-        const scoreY = this.isMobile ? 100 : 80; // Score position (100px from top on mobile)
+        const scoreY = this.isMobile ? 80 : 80; // Score position (80px from top on mobile)
         
         // Level indicator (left side with 40px offset)
         this.ctx.fillStyle = '#FFFFFF';
@@ -1337,16 +1337,16 @@ class Game {
         this.ctx.fillText(scoreText, scoreX, uiY);
         
         // Pause button (under Score) - visible icon
-        const pauseY = uiY + (this.isMobile ? 20 : 25);
+        const pauseY = 100; // Visual Y position from top
         const pauseSize = this.isMobile ? 18 : 22;
-        const pauseButtonX = scoreX;
+        const pauseButtonX = CONFIG.CANVAS_WIDTH - 80 - pauseSize; // Visual X position from right
         
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.fillRect(pauseButtonX, pauseY - pauseSize / 2, pauseSize / 3, pauseSize);
         this.ctx.fillRect(pauseButtonX + pauseSize / 2, pauseY - pauseSize / 2, pauseSize / 3, pauseSize);
         
-        // ENTIRE TOP RIGHT CORNER is clickable for pause
-        const pauseAreaSize = this.isMobile ? 100 : 120;
+        // ENTIRE TOP RIGHT CORNER is clickable for pause (200x200 zone)
+        const pauseAreaSize = 200;
         this.pauseButtonBounds = {
             x: CONFIG.CANVAS_WIDTH - pauseAreaSize,
             y: 0,
