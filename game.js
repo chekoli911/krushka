@@ -125,6 +125,36 @@ const LEVELS = [
         spawnRate: 0.018,
         targetDistance: 4000,
         backgroundImage: 'assets/background_night.png'
+    },
+    {
+        name: 'Midnight',
+        skyColor: '#000033',
+        skyColor2: '#1a0033',
+        groundColor: '#4a3a2a',
+        speed: CONFIG.BASE_SPEED * 1.98, // +10% from Night
+        spawnRate: 0.0216, // +20% from Night (0.018 * 1.2)
+        targetDistance: 4500,
+        backgroundImage: 'assets/background_midnight.png'
+    },
+    {
+        name: 'Dawn',
+        skyColor: '#2d1b3d',
+        skyColor2: '#4a2c5a',
+        groundColor: '#3d2e1f',
+        speed: CONFIG.BASE_SPEED * 2.178, // +10% from Midnight
+        spawnRate: 0.02592, // +20% from Midnight (0.0216 * 1.2)
+        targetDistance: 5000,
+        backgroundImage: 'assets/background_dawn.png'
+    },
+    {
+        name: 'Storm',
+        skyColor: '#1a1a2e',
+        skyColor2: '#16213e',
+        groundColor: '#2d2416',
+        speed: CONFIG.BASE_SPEED * 2.3958, // +10% from Dawn
+        spawnRate: 0.031104, // +20% from Dawn (0.02592 * 1.2)
+        targetDistance: 5500,
+        backgroundImage: 'assets/background_storm.png'
     }
 ];
 
@@ -578,6 +608,14 @@ class Game {
 
         // Mouse/Touch - start
         this.canvas.addEventListener('mousedown', (e) => {
+            // Handle pause/unpause on click during paused state (anywhere on screen)
+            if (this.state === GAME_STATE.PAUSED) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.togglePause();
+                return;
+            }
+            
             // Check if click is in pause button area first
             if (isInPauseArea(e.clientX, e.clientY)) {
                 e.preventDefault();
@@ -594,6 +632,14 @@ class Game {
         });
 
         this.canvas.addEventListener('touchstart', (e) => {
+            // Handle pause/unpause on touch during paused state (anywhere on screen)
+            if (this.state === GAME_STATE.PAUSED) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.togglePause();
+                return;
+            }
+            
             // Check if touch is in pause button area first
             if (e.touches && e.touches.length > 0) {
                 const touch = e.touches[0];
@@ -1324,7 +1370,7 @@ class Game {
         // Level indicator (left side with 40px offset)
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = this.isMobile ? 'bold 15px monospace' : 'bold 18px monospace'; // 15px for headers
-        this.ctx.fillText(`Level: ${this.currentLevel + 1}/5`, edgeOffset, uiY);
+        this.ctx.fillText(`Level: ${this.currentLevel + 1}/${LEVELS.length}`, edgeOffset, uiY);
         
         this.ctx.font = this.isMobile ? '13px monospace' : '16px monospace'; // 13px for text
         this.ctx.fillText(levelConfig.name, edgeOffset, uiY2);
@@ -1532,7 +1578,7 @@ class Game {
         
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = '18px monospace';
-        this.ctx.fillText('You finished all 5 levels!', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 40);
+        this.ctx.fillText(`You finished all ${LEVELS.length} levels!`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 40);
         this.ctx.font = '20px monospace';
         this.ctx.fillText(`Final Score: ${this.totalScore}`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2);
         this.ctx.font = '16px monospace';
