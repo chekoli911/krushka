@@ -462,7 +462,7 @@ class Game {
     constructor(canvas) {
         if (!canvas) {
             console.error('Canvas element not found!');
-            return;
+            throw new Error('Canvas element not found!');
         }
         
         this.canvas = canvas;
@@ -470,7 +470,7 @@ class Game {
         
         if (!this.ctx) {
             console.error('Could not get 2d context from canvas!');
-            return;
+            throw new Error('Could not get 2d context from canvas!');
         }
         
         this.state = GAME_STATE.MENU;
@@ -660,12 +660,15 @@ class Game {
         // Helper function to check wheel button clicks
         const checkWheelButtonClick = (clientX, clientY) => {
             if (this.state !== GAME_STATE.WHEEL_OF_FORTUNE) return false;
+            if (!this.canvas) return false;
             
             const rect = this.canvas.getBoundingClientRect();
+            if (!rect || rect.width === 0 || rect.height === 0) return false;
+            
             const x = clientX - rect.left;
             const y = clientY - rect.top;
-            const scaleX = this.canvas.width / rect.width;
-            const scaleY = this.canvas.height / rect.height;
+            const scaleX = this.canvas.width / (rect.width || 1);
+            const scaleY = this.canvas.height / (rect.height || 1);
             const canvasX = x * scaleX;
             const canvasY = y * scaleY;
             
@@ -714,6 +717,7 @@ class Game {
             if (this.state !== GAME_STATE.PLAYING) {
                 return false;
             }
+            if (!this.canvas) return false;
             
             // Calculate pause button bounds if not set yet (fallback)
             let pauseBounds = this.pauseButtonBounds;
@@ -728,10 +732,12 @@ class Game {
             }
             
             const rect = this.canvas.getBoundingClientRect();
+            if (!rect || rect.width === 0 || rect.height === 0) return false;
+            
             const x = clientX - rect.left;
             const y = clientY - rect.top;
-            const scaleX = this.canvas.width / rect.width;
-            const scaleY = this.canvas.height / rect.height;
+            const scaleX = this.canvas.width / (rect.width || 1);
+            const scaleY = this.canvas.height / (rect.height || 1);
             const canvasX = x * scaleX;
             const canvasY = y * scaleY;
             
@@ -1755,6 +1761,8 @@ class Game {
             console.error('Error drawing menu background:', error);
         }
 
+        const edgeOffset = 40; // 40px offset from edge
+
         // Title with shadow for visibility (adjusted for vertical)
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
@@ -1789,7 +1797,7 @@ class Game {
 
         // Points display in menu (top right)
         this.ctx.font = 'bold 16px monospace';
-        const pointsText = `Points: ${this.points}`;
+        const pointsText = `Points: ${this.points || 0}`;
         const pointsWidth = this.ctx.measureText(pointsText).width;
         const pointsX = CONFIG.CANVAS_WIDTH - pointsWidth - edgeOffset;
         this.ctx.fillStyle = '#FFD700'; // Gold color for points
@@ -1884,51 +1892,80 @@ class Game {
     }
 
     draw() {
-        // Ensure canvas has proper size
-        if (this.canvas.width === 0 || this.canvas.height === 0) {
-            this.canvas.width = CONFIG.CANVAS_WIDTH;
-            this.canvas.height = CONFIG.CANVAS_HEIGHT;
-        }
-        
-        // Clear canvas with a background color first
-        this.ctx.fillStyle = '#87CEEB'; // Light blue fallback
-        this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
+        try {
+            // Ensure canvas and context exist
+            if (!this.canvas || !this.ctx) {
+                console.error('Canvas or context not available');
+                return;
+            }
+            
+            // Ensure canvas has proper size
+            if (this.canvas.width === 0 || this.canvas.height === 0) {
+                this.canvas.width = CONFIG.CANVAS_WIDTH;
+                this.canvas.height = CONFIG.CANVAS_HEIGHT;
+            }
+            
+            // Clear canvas with a background color first
+            this.ctx.fillStyle = '#87CEEB'; // Light blue fallback
+            this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
 
-        if (this.state === GAME_STATE.MENU) {
-            this.drawMenu();
-        } else if (this.state === GAME_STATE.PLAYING) {
-            this.drawBackground();
-            this.drawGround();
-            this.obstacles.forEach(obstacle => obstacle.draw(this.ctx, LEVELS[this.currentLevel]));
-            this.player.draw(this.ctx);
-            this.drawUI();
-        } else if (this.state === GAME_STATE.PAUSED) {
-            // Draw game in background when paused
-            this.drawBackground();
-            this.drawGround();
-            this.obstacles.forEach(obstacle => obstacle.draw(this.ctx, LEVELS[this.currentLevel]));
-            this.player.draw(this.ctx);
-            this.drawUI();
-            this.drawPauseScreen();
-        } else if (this.state === GAME_STATE.LEVEL_COMPLETE) {
-            this.drawBackground();
-            this.drawGround();
-            this.player.draw(this.ctx);
-            this.drawLevelComplete();
-        } else if (this.state === GAME_STATE.GAME_OVER) {
-            this.drawBackground();
-            this.drawGround();
-            if (this.obstacles.length > 0) {
-                this.obstacles.forEach(obstacle => obstacle.draw(this.ctx, LEVELS[this.currentLevel]));
+            if (this.state === GAME_STATE.MENU) {
+                this.drawMenu();
+            } else if (this.state === GAME_STATE.PLAYING) {
+                this.drawBackground();
+                this.drawGround();
+                if (this.obstacles && this.obstacles.length > 0) {
+                    this.obstacles.forEach(obstacle => obstacle.draw(this.ctx, LEVELS[this.currentLevel]));
+                }
+                if (this.player) {
+                    this.player.draw(this.ctx);
+                }
+                this.drawUI();
+            } else if (this.state === GAME_STATE.PAUSED) {
+                // Draw game in background when paused
+                this.drawBackground();
+                this.drawGround();
+                if (this.obstacles && this.obstacles.length > 0) {
+                    this.obstacles.forEach(obstacle => obstacle.draw(this.ctx, LEVELS[this.currentLevel]));
+                }
+                if (this.player) {
+                    this.player.draw(this.ctx);
+                }
+                this.drawUI();
+                this.drawPauseScreen();
+            } else if (this.state === GAME_STATE.LEVEL_COMPLETE) {
+                this.drawBackground();
+                this.drawGround();
+                if (this.player) {
+                    this.player.draw(this.ctx);
+                }
+                this.drawLevelComplete();
+            } else if (this.state === GAME_STATE.GAME_OVER) {
+                this.drawBackground();
+                this.drawGround();
+                if (this.obstacles && this.obstacles.length > 0) {
+                    this.obstacles.forEach(obstacle => obstacle.draw(this.ctx, LEVELS[this.currentLevel]));
+                }
+                if (this.player) {
+                    this.player.draw(this.ctx);
+                }
+                this.drawGameOver();
+            } else if (this.state === GAME_STATE.ALL_COMPLETE) {
+                this.drawAllComplete();
+            } else if (this.state === GAME_STATE.WHEEL_OF_FORTUNE) {
+                this.drawWheelOfFortune();
             }
-            if (this.player) {
-                this.player.draw(this.ctx);
+        } catch (error) {
+            console.error('Error in draw():', error);
+            // Draw error message
+            if (this.ctx) {
+                this.ctx.fillStyle = '#000000';
+                this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
+                this.ctx.fillStyle = '#FF0000';
+                this.ctx.font = '20px monospace';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText('Error: ' + error.message, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2);
             }
-            this.drawGameOver();
-        } else if (this.state === GAME_STATE.ALL_COMPLETE) {
-            this.drawAllComplete();
-        } else if (this.state === GAME_STATE.WHEEL_OF_FORTUNE) {
-            this.drawWheelOfFortune();
         }
     }
     
