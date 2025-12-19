@@ -114,3 +114,6 @@ No build process required! Just edit the files and refresh your browser.
 - `styles.css` - Styling and layout
 - `index.html` - HTML structure and Telegram integration
 
+
+
+
