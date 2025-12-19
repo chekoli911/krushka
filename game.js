@@ -50,8 +50,8 @@ function getOptimalCanvasSize() {
 const initialSize = getOptimalCanvasSize();
 const CONFIG = {
     // Will be set based on device and screen size
-    CANVAS_WIDTH: initialSize.width,
-    CANVAS_HEIGHT: initialSize.height,
+    CANVAS_WIDTH: initialSize.width || 800,
+    CANVAS_HEIGHT: initialSize.height || 450,
     GRAVITY: 0.8,
     JUMP_STRENGTH_MIN: -15,
     JUMP_STRENGTH_MAX: -28,
@@ -1049,17 +1049,37 @@ class Game {
     }
 
     start() {
-        this.state = GAME_STATE.MENU;
-        // Update points from localStorage
-        this.points = POINTS_MANAGER.getPoints();
-        // Draw immediately to show menu
-        this.draw();
-        // Start game loop
-        this.gameLoop();
-        // Focus canvas after a short delay to enable keyboard input
-        setTimeout(() => this.focusCanvas(), 100);
-        // Start demo timer
-        this.startDemoTimer();
+        try {
+            this.state = GAME_STATE.MENU;
+            // Update points from localStorage
+            this.points = POINTS_MANAGER.getPoints();
+            
+            // Ensure canvas is properly sized
+            if (this.canvas && (this.canvas.width === 0 || this.canvas.height === 0)) {
+                this.canvas.width = CONFIG.CANVAS_WIDTH || 800;
+                this.canvas.height = CONFIG.CANVAS_HEIGHT || 450;
+            }
+            
+            // Draw immediately to show menu
+            this.draw();
+            // Start game loop
+            this.gameLoop();
+            // Focus canvas after a short delay to enable keyboard input
+            setTimeout(() => this.focusCanvas(), 100);
+            // Start demo timer
+            this.startDemoTimer();
+        } catch (error) {
+            console.error('Error in start():', error);
+            // Try to show error on canvas
+            if (this.ctx) {
+                this.ctx.fillStyle = '#000000';
+                this.ctx.fillRect(0, 0, 800, 450);
+                this.ctx.fillStyle = '#FF0000';
+                this.ctx.font = '20px monospace';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText('Error: ' + error.message, 400, 225);
+            }
+        }
     }
     
     startDemoTimer() {
@@ -1762,6 +1782,8 @@ class Game {
         }
 
         const edgeOffset = 40; // 40px offset from edge
+        const canvasWidth = CONFIG.CANVAS_WIDTH || this.canvas.width || 800;
+        const canvasHeight = CONFIG.CANVAS_HEIGHT || this.canvas.height || 450;
 
         // Title with shadow for visibility (adjusted for vertical)
         this.ctx.textAlign = 'center';
@@ -1770,53 +1792,53 @@ class Game {
         // Title shadow
         this.ctx.fillStyle = '#000000';
         this.ctx.font = 'bold 36px monospace';
-        this.ctx.fillText('Krushka', CONFIG.CANVAS_WIDTH / 2 + 2, CONFIG.CANVAS_HEIGHT / 2 - 100 + 2);
+        this.ctx.fillText('Krushka', canvasWidth / 2 + 2, canvasHeight / 2 - 100 + 2);
         
         // Title
         this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.fillText('Krushka', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 100);
+        this.ctx.fillText('Krushka', canvasWidth / 2, canvasHeight / 2 - 100);
         
         // Subtitle
         this.ctx.font = 'bold 20px monospace';
         this.ctx.fillStyle = '#000000';
-        this.ctx.fillText('Knight Rider', CONFIG.CANVAS_WIDTH / 2 + 1, CONFIG.CANVAS_HEIGHT / 2 - 60 + 1);
+        this.ctx.fillText('Knight Rider', canvasWidth / 2 + 1, canvasHeight / 2 - 60 + 1);
         this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.fillText('Knight Rider', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 60);
+        this.ctx.fillText('Knight Rider', canvasWidth / 2, canvasHeight / 2 - 60);
 
         // Instructions (smaller for vertical)
         this.ctx.font = '14px monospace';
         this.ctx.fillStyle = '#000000';
-        this.ctx.fillText('Tap or Hold to Jump', CONFIG.CANVAS_WIDTH / 2 + 1, CONFIG.CANVAS_HEIGHT / 2 - 20 + 1);
+        this.ctx.fillText('Tap or Hold to Jump', canvasWidth / 2 + 1, canvasHeight / 2 - 20 + 1);
         this.ctx.fillStyle = '#FFFF00';
-        this.ctx.fillText('Tap or Hold to Jump', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 20);
+        this.ctx.fillText('Tap or Hold to Jump', canvasWidth / 2, canvasHeight / 2 - 20);
         
         this.ctx.fillStyle = '#000000';
-        this.ctx.fillText('Avoid obstacles!', CONFIG.CANVAS_WIDTH / 2 + 1, CONFIG.CANVAS_HEIGHT / 2 + 10 + 1);
+        this.ctx.fillText('Avoid obstacles!', canvasWidth / 2 + 1, canvasHeight / 2 + 10 + 1);
         this.ctx.fillStyle = '#FFFF00';
-        this.ctx.fillText('Avoid obstacles!', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 10);
+        this.ctx.fillText('Avoid obstacles!', canvasWidth / 2, canvasHeight / 2 + 10);
 
         // Points display in menu (top right)
         this.ctx.font = 'bold 16px monospace';
         const pointsText = `Points: ${this.points || 0}`;
         const pointsWidth = this.ctx.measureText(pointsText).width;
-        const pointsX = CONFIG.CANVAS_WIDTH - pointsWidth - edgeOffset;
+        const pointsX = canvasWidth - pointsWidth - edgeOffset;
         this.ctx.fillStyle = '#FFD700'; // Gold color for points
         this.ctx.fillText(pointsText, pointsX, 40);
         this.ctx.fillStyle = '#FFFFFF'; // Reset to white
         
         // Start button with border (smaller for vertical)
-        const btnWidth = Math.min(250, CONFIG.CANVAS_WIDTH - 40);
+        const btnWidth = Math.min(250, canvasWidth - 40);
         const btnHeight = 45;
-        const startY = CONFIG.CANVAS_HEIGHT / 2 + 50;
+        const startY = canvasHeight / 2 + 50;
         
         // START GAME button
         this.ctx.fillStyle = '#000000';
-        this.ctx.fillRect(CONFIG.CANVAS_WIDTH / 2 - btnWidth / 2 - 5, startY, btnWidth + 10, btnHeight + 10);
+        this.ctx.fillRect(canvasWidth / 2 - btnWidth / 2 - 5, startY, btnWidth + 10, btnHeight + 10);
         this.ctx.fillStyle = '#27AE60';
-        this.ctx.fillRect(CONFIG.CANVAS_WIDTH / 2 - btnWidth / 2, startY + 5, btnWidth, btnHeight);
+        this.ctx.fillRect(canvasWidth / 2 - btnWidth / 2, startY + 5, btnWidth, btnHeight);
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = 'bold 18px monospace';
-        this.ctx.fillText('START GAME', CONFIG.CANVAS_WIDTH / 2, startY + 30);
+        this.ctx.fillText('START GAME', canvasWidth / 2, startY + 30);
         
         // Show auto-demo hint
         const timeSinceInteraction = (Date.now() - this.lastInteractionTime) / 1000;
@@ -1824,7 +1846,7 @@ class Game {
         if (timeLeft > 0 && timeLeft < 30) {
             this.ctx.font = '12px monospace';
             this.ctx.fillStyle = '#888888';
-            this.ctx.fillText(`Demo starts in ${Math.ceil(timeLeft)}s`, CONFIG.CANVAS_WIDTH / 2, startY + btnHeight + 30);
+            this.ctx.fillText(`Demo starts in ${Math.ceil(timeLeft)}s`, canvasWidth / 2, startY + btnHeight + 30);
         }
 
         this.ctx.textAlign = 'left';
@@ -1900,14 +1922,17 @@ class Game {
             }
             
             // Ensure canvas has proper size
+            const canvasWidth = CONFIG.CANVAS_WIDTH || 800;
+            const canvasHeight = CONFIG.CANVAS_HEIGHT || 450;
+            
             if (this.canvas.width === 0 || this.canvas.height === 0) {
-                this.canvas.width = CONFIG.CANVAS_WIDTH;
-                this.canvas.height = CONFIG.CANVAS_HEIGHT;
+                this.canvas.width = canvasWidth;
+                this.canvas.height = canvasHeight;
             }
             
             // Clear canvas with a background color first
             this.ctx.fillStyle = '#87CEEB'; // Light blue fallback
-            this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
+            this.ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
             if (this.state === GAME_STATE.MENU) {
                 this.drawMenu();
@@ -1959,12 +1984,15 @@ class Game {
             console.error('Error in draw():', error);
             // Draw error message
             if (this.ctx) {
+                const canvasWidth = CONFIG.CANVAS_WIDTH || 800;
+                const canvasHeight = CONFIG.CANVAS_HEIGHT || 450;
                 this.ctx.fillStyle = '#000000';
-                this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
+                this.ctx.fillRect(0, 0, canvasWidth, canvasHeight);
                 this.ctx.fillStyle = '#FF0000';
                 this.ctx.font = '20px monospace';
                 this.ctx.textAlign = 'center';
-                this.ctx.fillText('Error: ' + error.message, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2);
+                this.ctx.fillText('Error: ' + error.message, canvasWidth / 2, canvasHeight / 2);
+                console.error('Draw error details:', error.stack);
             }
         }
     }
@@ -2192,17 +2220,22 @@ window.addEventListener('DOMContentLoaded', () => {
 
 // ==================== INITIALIZE GAME ====================
 window.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM Content Loaded');
     const canvas = document.getElementById('game-canvas');
     if (!canvas) {
         console.error('Canvas element with id "game-canvas" not found!');
         return;
     }
     
+    console.log('Canvas found, initializing game...');
     try {
         const game = new Game(canvas);
         console.log('Game initialized successfully');
+        // Store game instance globally for debugging
+        window.game = game;
     } catch (error) {
         console.error('Error initializing game:', error);
+        console.error('Error stack:', error.stack);
     }
 });
 
