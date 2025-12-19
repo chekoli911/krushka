@@ -1566,7 +1566,7 @@ class Game {
             }
 
             // Check level complete - use score instead of distance
-            const targetScore = 350; // Fixed score target for all levels
+            const targetScore = 50; // Fixed score target for all levels
             if (this.score >= targetScore) {
                 // Add current level score to total score
                 this.totalScore += this.score;
@@ -1678,6 +1678,13 @@ class Game {
         
         this.ctx.font = this.isMobile ? '13px monospace' : '16px monospace'; // 13px for text
         this.ctx.fillText(levelConfig.name, edgeOffset, uiY2);
+        
+        // Points (below level name, left side)
+        this.ctx.font = this.isMobile ? 'bold 13px monospace' : 'bold 16px monospace';
+        const pointsText = `Points: ${this.points}`;
+        this.ctx.fillStyle = '#FFD700'; // Gold color for points
+        this.ctx.fillText(pointsText, edgeOffset, pointsY);
+        this.ctx.fillStyle = '#FFFFFF'; // Reset to white
 
         // Score (right side with 40px offset)
         this.ctx.font = this.isMobile ? 'bold 15px monospace' : 'bold 18px monospace'; // 15px for headers
@@ -1685,15 +1692,6 @@ class Game {
         const scoreWidth = this.ctx.measureText(scoreText).width;
         const scoreX = CONFIG.CANVAS_WIDTH - scoreWidth - edgeOffset; // 40px from right edge
         this.ctx.fillText(scoreText, scoreX, uiY);
-        
-        // Points (below score)
-        this.ctx.font = this.isMobile ? 'bold 13px monospace' : 'bold 16px monospace';
-        const pointsText = `Points: ${this.points}`;
-        const pointsWidth = this.ctx.measureText(pointsText).width;
-        const pointsX = CONFIG.CANVAS_WIDTH - pointsWidth - edgeOffset;
-        this.ctx.fillStyle = '#FFD700'; // Gold color for points
-        this.ctx.fillText(pointsText, pointsX, pointsY);
-        this.ctx.fillStyle = '#FFFFFF'; // Reset to white
         
         // Pause button (under Score) - visible icon
         const pauseY = 100; // Visual Y position from top
@@ -1864,7 +1862,7 @@ class Game {
         if (this.currentLevel < LEVELS.length - 1) {
             this.ctx.fillText(`Level ${this.currentLevel + 1} Complete!`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 60);
             this.ctx.font = '20px monospace';
-            this.ctx.fillText(`Score: ${this.score} / 350`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 20);
+            this.ctx.fillText(`Score: ${this.score} / 50`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 20);
             this.ctx.font = '16px monospace';
             this.ctx.fillText('Tap for Next Level', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 20);
         }
