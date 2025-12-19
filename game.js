@@ -2106,22 +2106,6 @@ class Game {
             this.ctx.fillText('Back to Menu', CONFIG.CANVAS_WIDTH / 2, backButtonY + 32);
             this.wheelBackButtonBounds = { x: buttonX, y: backButtonY, width: buttonWidth, height: buttonHeight };
         } else {
-            // Back button (when not showing result)
-            const buttonWidth = 200;
-            const buttonHeight = 50;
-            const buttonX = CONFIG.CANVAS_WIDTH / 2 - buttonWidth / 2;
-            const backButtonY = CONFIG.CANVAS_HEIGHT / 2 + 170;
-            this.ctx.fillStyle = '#E74C3C';
-            this.ctx.fillRect(buttonX, backButtonY, buttonWidth, buttonHeight);
-            this.ctx.strokeStyle = '#FFFFFF';
-            this.ctx.lineWidth = 2;
-            this.ctx.strokeRect(buttonX, backButtonY, buttonWidth, buttonHeight);
-            this.ctx.fillStyle = '#FFFFFF';
-            this.ctx.font = 'bold 18px monospace';
-            this.ctx.textAlign = 'center';
-            this.ctx.fillText('Back to Menu', CONFIG.CANVAS_WIDTH / 2, backButtonY + 32);
-            this.wheelBackButtonBounds = { x: buttonX, y: backButtonY, width: buttonWidth, height: buttonHeight };
-        } else {
             // Spin button
             const buttonWidth = 200;
             const buttonHeight = 50;
