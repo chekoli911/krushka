@@ -214,14 +214,35 @@ const POINTS_MANAGER = {
 // ==================== WHEEL OF FORTUNE CONFIG ====================
 const WHEEL_CONFIG = {
     SQUARES_COUNT: 12,
-    SQUARE_WIDTH: 80,
-    SQUARE_HEIGHT: 80,
+    SQUARE_WIDTH: 120, // Increased from 80
+    SQUARE_HEIGHT: 120, // Increased from 80
     SPIN_DURATION: 3000, // 3 seconds
     BASE_URL: 'https://arenapsgm.ru/',
+    
+    // Images for each square (1-12)
+    IMAGES: [
+        'https://static.tildacdn.com/stor3537-3737-4635-a535-643336663233/19172606.jpg',
+        'https://static.tildacdn.com/stor3030-6230-4230-a566-333630376238/19090300.jpg',
+        'https://static.tildacdn.com/stor3430-6238-4430-b162-633431303163/31905856.jpg',
+        'https://static.tildacdn.com/stor6161-3266-4064-a139-363037313830/32528681.jpg',
+        'https://static.tildacdn.com/stor3737-6265-4465-b361-313430376663/92682172.png',
+        'https://static.tildacdn.com/stor3236-3239-4638-b963-343266613133/29471824.jpg',
+        'https://static.tildacdn.com/stor6461-3137-4562-b838-633463303430/33211320.jpg',
+        'https://static.tildacdn.com/stor6639-3432-4936-b663-646134313133/45101323.jpg',
+        'https://static.tildacdn.com/stor3665-3334-4431-b362-363031396236/47965198.jpg',
+        'https://static.tildacdn.com/stor6433-6238-4664-a230-363232376530/54414205.jpg',
+        'https://static.tildacdn.com/stor3135-3231-4134-a664-613431653335/87815301.jpg',
+        'https://static.tildacdn.com/stor6438-3539-4564-b335-303262343733/39602838.jpg'
+    ],
     
     // Links for each number (1-12), currently all same URL
     getLink(number) {
         return this.BASE_URL;
+    },
+    
+    // Get image URL for square number (1-12)
+    getImage(number) {
+        return this.IMAGES[number - 1] || null;
     }
 };
 
@@ -524,11 +545,25 @@ class Game {
     initWheelOfFortune() {
         // Initialize wheel squares with numbers 1-12
         this.wheelSquares = [];
+        this.wheelImages = {}; // Cache for loaded images
+        
         for (let i = 1; i <= WHEEL_CONFIG.SQUARES_COUNT; i++) {
             this.wheelSquares.push({
                 number: i,
-                link: WHEEL_CONFIG.getLink(i)
+                link: WHEEL_CONFIG.getLink(i),
+                imageUrl: WHEEL_CONFIG.getImage(i)
             });
+            
+            // Preload images
+            const img = new Image();
+            img.crossOrigin = 'anonymous'; // Allow cross-origin images
+            img.src = WHEEL_CONFIG.getImage(i);
+            img.onload = () => {
+                this.wheelImages[i] = img;
+            };
+            img.onerror = () => {
+                console.warn(`Failed to load image for square ${i}`);
+            };
         }
     }
 
@@ -2000,19 +2035,19 @@ class Game {
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
         this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
         
-        // Title
+        // Title (moved lower)
         this.ctx.fillStyle = '#FFD700';
         this.ctx.font = 'bold 32px monospace';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText('Wheel of Fortune', CONFIG.CANVAS_WIDTH / 2, 60);
+        this.ctx.fillText('Wheel of Fortune', CONFIG.CANVAS_WIDTH / 2, 80);
         
         // Points display
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = 'bold 20px monospace';
-        this.ctx.fillText(`Your Points: ${this.points}`, CONFIG.CANVAS_WIDTH / 2, 100);
+        this.ctx.fillText(`Your Points: ${this.points}`, CONFIG.CANVAS_WIDTH / 2, 120);
         
         // Draw wheel (horizontal strip)
-        const wheelY = CONFIG.CANVAS_HEIGHT / 2 - 100;
+        const wheelY = CONFIG.CANVAS_HEIGHT / 2 - 80;
         const wheelHeight = WHEEL_CONFIG.SQUARE_HEIGHT;
         const totalWidth = WHEEL_CONFIG.SQUARES_COUNT * WHEEL_CONFIG.SQUARE_WIDTH;
         const wheelStartX = CONFIG.CANVAS_WIDTH / 2 - totalWidth / 2;
@@ -2049,16 +2084,30 @@ class Game {
                 }
                 this.ctx.fillRect(squareX, wheelY, WHEEL_CONFIG.SQUARE_WIDTH, wheelHeight);
                 
+                // Draw image if loaded
+                const img = this.wheelImages[square.number];
+                if (img && img.complete && img.naturalWidth > 0) {
+                    // Draw image with padding
+                    const padding = 4;
+                    this.ctx.drawImage(
+                        img,
+                        squareX + padding,
+                        wheelY + padding,
+                        WHEEL_CONFIG.SQUARE_WIDTH - (padding * 2),
+                        wheelHeight - (padding * 2)
+                    );
+                } else {
+                    // Fallback: show number if image not loaded
+                    this.ctx.fillStyle = '#FFFFFF';
+                    this.ctx.font = 'bold 24px monospace';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText(square.number.toString(), squareX + WHEEL_CONFIG.SQUARE_WIDTH / 2, wheelY + wheelHeight / 2);
+                }
+                
                 // Border
                 this.ctx.strokeStyle = '#FFFFFF';
                 this.ctx.lineWidth = 2;
                 this.ctx.strokeRect(squareX, wheelY, WHEEL_CONFIG.SQUARE_WIDTH, wheelHeight);
-                
-                // Number
-                this.ctx.fillStyle = '#FFFFFF';
-                this.ctx.font = 'bold 24px monospace';
-                this.ctx.textAlign = 'center';
-                this.ctx.fillText(square.number.toString(), squareX + WHEEL_CONFIG.SQUARE_WIDTH / 2, wheelY + wheelHeight / 2);
             }
         }
         
