@@ -165,7 +165,64 @@ const GAME_STATE = {
     PAUSED: 'paused',
     LEVEL_COMPLETE: 'levelComplete',
     GAME_OVER: 'gameOver',
-    ALL_COMPLETE: 'allComplete'
+    ALL_COMPLETE: 'allComplete',
+    WHEEL_OF_FORTUNE: 'wheelOfFortune'
+};
+
+// ==================== POINTS SYSTEM ====================
+const POINTS_MANAGER = {
+    STORAGE_KEY: 'krushka_points',
+    POINTS_PER_8_LEVELS: 100,
+    WHEEL_COST: 100,
+    
+    getPoints() {
+        try {
+            const points = localStorage.getItem(this.STORAGE_KEY);
+            return points ? parseInt(points, 10) : 0;
+        } catch (e) {
+            console.error('Error reading points from localStorage:', e);
+            return 0;
+        }
+    },
+    
+    setPoints(points) {
+        try {
+            localStorage.setItem(this.STORAGE_KEY, points.toString());
+        } catch (e) {
+            console.error('Error saving points to localStorage:', e);
+        }
+    },
+    
+    addPoints(amount) {
+        const current = this.getPoints();
+        const newTotal = current + amount;
+        this.setPoints(newTotal);
+        return newTotal;
+    },
+    
+    spendPoints(amount) {
+        const current = this.getPoints();
+        if (current >= amount) {
+            const newTotal = current - amount;
+            this.setPoints(newTotal);
+            return true;
+        }
+        return false;
+    }
+};
+
+// ==================== WHEEL OF FORTUNE CONFIG ====================
+const WHEEL_CONFIG = {
+    SQUARES_COUNT: 12,
+    SQUARE_WIDTH: 80,
+    SQUARE_HEIGHT: 80,
+    SPIN_DURATION: 3000, // 3 seconds
+    BASE_URL: 'https://arenapsgm.ru/',
+    
+    // Links for each number (1-12), currently all same URL
+    getLink(number) {
+        return this.BASE_URL;
+    }
 };
 
 // ==================== PLAYER CLASS ====================
@@ -435,6 +492,20 @@ class Game {
         this.lastInteractionTime = Date.now(); // Track last user interaction
         this.lastObstacleX = -1000; // Track last obstacle position for spacing
         
+        // Points system
+        this.points = POINTS_MANAGER.getPoints();
+        
+        // Wheel of Fortune
+        this.wheelSquares = [];
+        this.wheelSpinning = false;
+        this.wheelSpinStartTime = 0;
+        this.wheelSpinOffset = 0;
+        this.wheelSelectedSquare = null;
+        this.wheelTargetSquare = null; // Pre-selected square for spin
+        this.wheelConfetti = [];
+        this.wheelShowResult = false;
+        this.initWheelOfFortune();
+        
         this.setupCanvas();
         this.setupTelegram();
         this.setupControls();
@@ -447,6 +518,18 @@ class Game {
         console.log('Canvas size:', CONFIG.CANVAS_WIDTH, 'x', CONFIG.CANVAS_HEIGHT);
         console.log('Is mobile:', this.isMobile);
         console.log('Initial state:', this.state);
+        console.log('Points:', this.points);
+    }
+    
+    initWheelOfFortune() {
+        // Initialize wheel squares with numbers 1-12
+        this.wheelSquares = [];
+        for (let i = 1; i <= WHEEL_CONFIG.SQUARES_COUNT; i++) {
+            this.wheelSquares.push({
+                number: i,
+                link: WHEEL_CONFIG.getLink(i)
+            });
+        }
     }
 
     setupCanvas() {
@@ -573,6 +656,58 @@ class Game {
             }
         };
         window.addEventListener('keydown', testHandler);
+        
+        // Helper function to check wheel button clicks
+        const checkWheelButtonClick = (clientX, clientY) => {
+            if (this.state !== GAME_STATE.WHEEL_OF_FORTUNE) return false;
+            
+            const rect = this.canvas.getBoundingClientRect();
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+            const scaleX = this.canvas.width / rect.width;
+            const scaleY = this.canvas.height / rect.height;
+            const canvasX = x * scaleX;
+            const canvasY = y * scaleY;
+            
+            // Check link button
+            if (this.wheelLinkButtonBounds) {
+                const btn = this.wheelLinkButtonBounds;
+                if (canvasX >= btn.x && canvasX <= btn.x + btn.width &&
+                    canvasY >= btn.y && canvasY <= btn.y + btn.height) {
+                    window.open(btn.link, '_blank');
+                    return true;
+                }
+            }
+            
+            // Check back button
+            if (this.wheelBackButtonBounds) {
+                const btn = this.wheelBackButtonBounds;
+                if (canvasX >= btn.x && canvasX <= btn.x + btn.width &&
+                    canvasY >= btn.y && canvasY <= btn.y + btn.height) {
+                    this.state = GAME_STATE.MENU;
+                    this.wheelShowResult = false;
+                    this.wheelSelectedSquare = null;
+                    this.wheelConfetti = [];
+                    this.wheelSpinning = false;
+                    this.wheelSpinOffset = 0;
+                    // Update points from localStorage
+                    this.points = POINTS_MANAGER.getPoints();
+                    return true;
+                }
+            }
+            
+            // Check spin button
+            if (this.wheelSpinButtonBounds && !this.wheelSpinning && !this.wheelShowResult) {
+                const btn = this.wheelSpinButtonBounds;
+                if (canvasX >= btn.x && canvasX <= btn.x + btn.width &&
+                    canvasY >= btn.y && canvasY <= btn.y + btn.height) {
+                    this.spinWheel();
+                    return true;
+                }
+            }
+            
+            return false;
+        };
 
         // Helper function to check if coordinates are in pause button area
         const isInPauseArea = (clientX, clientY) => {
@@ -608,6 +743,13 @@ class Game {
 
         // Mouse/Touch - start
         this.canvas.addEventListener('mousedown', (e) => {
+            // Handle wheel of fortune clicks
+            if (checkWheelButtonClick(e.clientX, e.clientY)) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            
             // Handle pause/unpause on click during paused state (anywhere on screen)
             if (this.state === GAME_STATE.PAUSED) {
                 e.preventDefault();
@@ -632,6 +774,16 @@ class Game {
         });
 
         this.canvas.addEventListener('touchstart', (e) => {
+            // Handle wheel of fortune touches
+            if (e.touches && e.touches.length > 0) {
+                const touch = e.touches[0];
+                if (checkWheelButtonClick(touch.clientX, touch.clientY)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                }
+            }
+            
             // Handle pause/unpause on touch during paused state (anywhere on screen)
             if (this.state === GAME_STATE.PAUSED) {
                 e.preventDefault();
@@ -660,6 +812,13 @@ class Game {
 
         // Also focus on click
         this.canvas.addEventListener('click', (e) => {
+            // Handle wheel of fortune clicks
+            if (checkWheelButtonClick(e.clientX, e.clientY)) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            
             this.focusCanvas();
             // Reset demo timer on any click
             this.resetDemoTimer();
@@ -738,10 +897,110 @@ class Game {
             // Reload page to restart game
             window.location.reload();
         } else if (this.state === GAME_STATE.ALL_COMPLETE) {
-            // Reload page to restart game
-            window.location.reload();
+            // Check if player has 100+ points for Wheel of Fortune
+            this.points = POINTS_MANAGER.getPoints();
+            if (this.points >= POINTS_MANAGER.WHEEL_COST) {
+                // Reset wheel state
+                this.wheelSpinning = false;
+                this.wheelShowResult = false;
+                this.wheelSelectedSquare = null;
+                this.wheelConfetti = [];
+                this.wheelSpinOffset = 0;
+                this.state = GAME_STATE.WHEEL_OF_FORTUNE;
+            } else {
+                // Reload page to restart game
+                window.location.reload();
+            }
+        } else if (this.state === GAME_STATE.WHEEL_OF_FORTUNE) {
+            // Wheel interactions handled in click handlers
         }
     }
+    
+    
+    spinWheel() {
+        if (this.wheelSpinning || this.points < POINTS_MANAGER.WHEEL_COST) return;
+        
+        // Spend points
+        if (POINTS_MANAGER.spendPoints(POINTS_MANAGER.WHEEL_COST)) {
+            this.points = POINTS_MANAGER.getPoints();
+            this.wheelSpinning = true;
+            this.wheelSpinStartTime = Date.now();
+            this.wheelShowResult = false;
+            this.wheelSelectedSquare = null;
+            this.wheelConfetti = [];
+            // Pre-select random square for this spin
+            this.wheelTargetSquare = Math.floor(Math.random() * WHEEL_CONFIG.SQUARES_COUNT) + 1;
+        }
+    }
+    
+    updateWheelOfFortune() {
+        if (this.wheelSpinning) {
+            const elapsed = Date.now() - this.wheelSpinStartTime;
+            const progress = Math.min(elapsed / WHEEL_CONFIG.SPIN_DURATION, 1);
+            
+            // Calculate target offset for pre-selected square
+            const totalWidth = WHEEL_CONFIG.SQUARES_COUNT * WHEEL_CONFIG.SQUARE_WIDTH;
+            const wheelStartX = CONFIG.CANVAS_WIDTH / 2 - totalWidth / 2;
+            const selectedSquareIndex = this.wheelTargetSquare - 1;
+            const selectedSquareX = wheelStartX + (selectedSquareIndex * WHEEL_CONFIG.SQUARE_WIDTH);
+            const centerX = CONFIG.CANVAS_WIDTH / 2;
+            const targetOffset = selectedSquareX - centerX + (WHEEL_CONFIG.SQUARE_WIDTH / 2);
+            
+            // Add extra rotations for visual effect (3-5 full rotations)
+            const extraRotations = 3 + Math.random() * 2;
+            const finalOffset = targetOffset + (extraRotations * totalWidth);
+            
+            if (progress >= 1) {
+                // Spin complete
+                this.wheelSpinning = false;
+                this.wheelSelectedSquare = this.wheelTargetSquare;
+                this.wheelShowResult = true;
+                this.wheelSpinOffset = finalOffset;
+                
+                // Create confetti
+                this.createConfetti();
+            } else {
+                // Easing function for smooth deceleration (ease-out cubic)
+                const easeOut = 1 - Math.pow(1 - progress, 3);
+                
+                // Interpolate to final position
+                this.wheelSpinOffset = finalOffset * (1 - easeOut);
+            }
+        }
+        
+        // Update confetti
+        this.updateConfetti();
+    }
+    
+    createConfetti() {
+        this.wheelConfetti = [];
+        const count = 50;
+        for (let i = 0; i < count; i++) {
+            this.wheelConfetti.push({
+                x: CONFIG.CANVAS_WIDTH / 2,
+                y: CONFIG.CANVAS_HEIGHT / 2 - 100,
+                vx: (Math.random() - 0.5) * 10,
+                vy: (Math.random() - 0.5) * 10 - 2,
+                color: `hsl(${Math.random() * 360}, 100%, 50%)`,
+                size: Math.random() * 8 + 4,
+                rotation: Math.random() * Math.PI * 2,
+                rotationSpeed: (Math.random() - 0.5) * 0.2,
+                life: 1.0
+            });
+        }
+    }
+    
+    updateConfetti() {
+        for (let confetti of this.wheelConfetti) {
+            confetti.x += confetti.vx;
+            confetti.y += confetti.vy;
+            confetti.vy += 0.3; // Gravity
+            confetti.rotation += confetti.rotationSpeed;
+            confetti.life -= 0.02;
+        }
+        this.wheelConfetti = this.wheelConfetti.filter(c => c.life > 0);
+    }
+    
 
     handleDemoStart() {
         if (this.state === GAME_STATE.MENU) {
@@ -785,6 +1044,8 @@ class Game {
 
     start() {
         this.state = GAME_STATE.MENU;
+        // Update points from localStorage
+        this.points = POINTS_MANAGER.getPoints();
         // Draw immediately to show menu
         this.draw();
         // Start game loop
@@ -895,6 +1156,8 @@ class Game {
         // Stop demo and return to menu
         this.demoMode = false;
         this.state = GAME_STATE.MENU;
+        // Update points from localStorage
+        this.points = POINTS_MANAGER.getPoints();
         // Restart demo timer
         this.startDemoTimer();
     }
@@ -1222,6 +1485,12 @@ class Game {
             return;
         }
         
+        // Update Wheel of Fortune
+        if (this.state === GAME_STATE.WHEEL_OF_FORTUNE) {
+            this.updateWheelOfFortune();
+            return;
+        }
+        
         // Always update ground offset for smooth animation (even in menu)
         if (this.state === GAME_STATE.PLAYING) {
             const levelConfig = LEVELS[this.currentLevel];
@@ -1275,6 +1544,14 @@ class Game {
             if (this.score >= targetScore) {
                 // Add current level score to total score
                 this.totalScore += this.score;
+                
+                // Award 100 points for completing 8 levels (level index 7 = 8th level)
+                if (!this.demoMode && this.currentLevel === 7) {
+                    const newPoints = POINTS_MANAGER.addPoints(POINTS_MANAGER.POINTS_PER_8_LEVELS);
+                    this.points = newPoints;
+                    console.log(`Awarded ${POINTS_MANAGER.POINTS_PER_8_LEVELS} points! Total: ${newPoints}`);
+                }
+                
                 if (this.demoMode) {
                     // In demo mode, automatically go to next level (looping)
                     this.nextLevel();
@@ -1366,6 +1643,7 @@ class Game {
         const uiY2 = this.isMobile ? 100 : 80; // Level name position (100px from top on mobile)
         const livesY = this.isMobile ? 120 : 90; // Lives position (120px from top on mobile)
         const scoreY = this.isMobile ? 80 : 80; // Score position (80px from top on mobile)
+        const pointsY = this.isMobile ? 60 : 60; // Points position
         
         // Level indicator (left side with 40px offset)
         this.ctx.fillStyle = '#FFFFFF';
@@ -1381,6 +1659,15 @@ class Game {
         const scoreWidth = this.ctx.measureText(scoreText).width;
         const scoreX = CONFIG.CANVAS_WIDTH - scoreWidth - edgeOffset; // 40px from right edge
         this.ctx.fillText(scoreText, scoreX, uiY);
+        
+        // Points (below score)
+        this.ctx.font = this.isMobile ? 'bold 13px monospace' : 'bold 16px monospace';
+        const pointsText = `Points: ${this.points}`;
+        const pointsWidth = this.ctx.measureText(pointsText).width;
+        const pointsX = CONFIG.CANVAS_WIDTH - pointsWidth - edgeOffset;
+        this.ctx.fillStyle = '#FFD700'; // Gold color for points
+        this.ctx.fillText(pointsText, pointsX, pointsY);
+        this.ctx.fillStyle = '#FFFFFF'; // Reset to white
         
         // Pause button (under Score) - visible icon
         const pauseY = 100; // Visual Y position from top
@@ -1500,6 +1787,15 @@ class Game {
         this.ctx.fillStyle = '#FFFF00';
         this.ctx.fillText('Avoid obstacles!', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 10);
 
+        // Points display in menu (top right)
+        this.ctx.font = 'bold 16px monospace';
+        const pointsText = `Points: ${this.points}`;
+        const pointsWidth = this.ctx.measureText(pointsText).width;
+        const pointsX = CONFIG.CANVAS_WIDTH - pointsWidth - edgeOffset;
+        this.ctx.fillStyle = '#FFD700'; // Gold color for points
+        this.ctx.fillText(pointsText, pointsX, 40);
+        this.ctx.fillStyle = '#FFFFFF'; // Reset to white
+        
         // Start button with border (smaller for vertical)
         const btnWidth = Math.min(250, CONFIG.CANVAS_WIDTH - 40);
         const btnHeight = 45;
@@ -1631,6 +1927,175 @@ class Game {
             this.drawGameOver();
         } else if (this.state === GAME_STATE.ALL_COMPLETE) {
             this.drawAllComplete();
+        } else if (this.state === GAME_STATE.WHEEL_OF_FORTUNE) {
+            this.drawWheelOfFortune();
+        }
+    }
+    
+    drawWheelOfFortune() {
+        // Draw background
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+        this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
+        
+        // Title
+        this.ctx.fillStyle = '#FFD700';
+        this.ctx.font = 'bold 32px monospace';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('Wheel of Fortune', CONFIG.CANVAS_WIDTH / 2, 60);
+        
+        // Points display
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.font = 'bold 20px monospace';
+        this.ctx.fillText(`Your Points: ${this.points}`, CONFIG.CANVAS_WIDTH / 2, 100);
+        
+        // Draw wheel (horizontal strip)
+        const wheelY = CONFIG.CANVAS_HEIGHT / 2 - 100;
+        const wheelHeight = WHEEL_CONFIG.SQUARE_HEIGHT;
+        const totalWidth = WHEEL_CONFIG.SQUARES_COUNT * WHEEL_CONFIG.SQUARE_WIDTH;
+        const wheelStartX = CONFIG.CANVAS_WIDTH / 2 - totalWidth / 2;
+        
+        // Draw center indicator
+        const centerX = CONFIG.CANVAS_WIDTH / 2;
+        this.ctx.fillStyle = '#FF0000';
+        this.ctx.fillRect(centerX - 2, wheelY - 10, 4, wheelHeight + 20);
+        
+        // Draw squares with wrap-around for infinite scroll
+        // Draw multiple copies to ensure seamless scrolling
+        const copies = 3; // Draw 3 copies of the wheel
+        for (let copy = -1; copy <= copies; copy++) {
+            for (let i = 0; i < WHEEL_CONFIG.SQUARES_COUNT; i++) {
+                const square = this.wheelSquares[i];
+                const squareX = wheelStartX + (i * WHEEL_CONFIG.SQUARE_WIDTH) + (copy * totalWidth) - this.wheelSpinOffset;
+                
+                // Only draw if on screen
+                if (squareX + WHEEL_CONFIG.SQUARE_WIDTH < 0 || squareX > CONFIG.CANVAS_WIDTH) {
+                    continue;
+                }
+                
+                // Highlight selected square
+                const isSelected = this.wheelShowResult && square.number === this.wheelSelectedSquare;
+                const isInCenter = squareX <= centerX && squareX + WHEEL_CONFIG.SQUARE_WIDTH >= centerX;
+                
+                // Square background
+                if (isSelected) {
+                    this.ctx.fillStyle = '#FFD700';
+                } else if (isInCenter && !this.wheelSpinning) {
+                    this.ctx.fillStyle = '#4CAF50';
+                } else {
+                    this.ctx.fillStyle = i % 2 === 0 ? '#2C3E50' : '#34495E';
+                }
+                this.ctx.fillRect(squareX, wheelY, WHEEL_CONFIG.SQUARE_WIDTH, wheelHeight);
+                
+                // Border
+                this.ctx.strokeStyle = '#FFFFFF';
+                this.ctx.lineWidth = 2;
+                this.ctx.strokeRect(squareX, wheelY, WHEEL_CONFIG.SQUARE_WIDTH, wheelHeight);
+                
+                // Number
+                this.ctx.fillStyle = '#FFFFFF';
+                this.ctx.font = 'bold 24px monospace';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(square.number.toString(), squareX + WHEEL_CONFIG.SQUARE_WIDTH / 2, wheelY + wheelHeight / 2);
+            }
+        }
+        
+        this.ctx.textAlign = 'left';
+        
+        // Draw confetti
+        this.drawConfetti();
+        
+        // Spin button or result
+        if (this.wheelShowResult && this.wheelSelectedSquare) {
+            // Show result with link button
+            const selectedSquare = this.wheelSquares.find(s => s.number === this.wheelSelectedSquare);
+            
+            this.ctx.fillStyle = '#FFFFFF';
+            this.ctx.font = 'bold 24px monospace';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(`You won: ${this.wheelSelectedSquare}!`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 50);
+            
+            // Link button
+            const buttonWidth = 250;
+            const buttonHeight = 50;
+            const buttonX = CONFIG.CANVAS_WIDTH / 2 - buttonWidth / 2;
+            const buttonY = CONFIG.CANVAS_HEIGHT / 2 + 100;
+            
+            this.ctx.fillStyle = '#27AE60';
+            this.ctx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
+            this.ctx.strokeStyle = '#FFFFFF';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(buttonX, buttonY, buttonWidth, buttonHeight);
+            
+            this.ctx.fillStyle = '#FFFFFF';
+            this.ctx.font = 'bold 18px monospace';
+            this.ctx.fillText('Open Link', CONFIG.CANVAS_WIDTH / 2, buttonY + 32);
+            
+            // Store button bounds for click detection
+            this.wheelLinkButtonBounds = { x: buttonX, y: buttonY, width: buttonWidth, height: buttonHeight, link: selectedSquare.link };
+            
+            // Back button
+            const backButtonY = buttonY + 70;
+            this.ctx.fillStyle = '#E74C3C';
+            this.ctx.fillRect(buttonX, backButtonY, buttonWidth, buttonHeight);
+            this.ctx.strokeRect(buttonX, backButtonY, buttonWidth, buttonHeight);
+            this.ctx.fillText('Back to Menu', CONFIG.CANVAS_WIDTH / 2, backButtonY + 32);
+            this.wheelBackButtonBounds = { x: buttonX, y: backButtonY, width: buttonWidth, height: buttonHeight };
+        } else {
+            // Back button (when not showing result)
+            const buttonWidth = 200;
+            const buttonHeight = 50;
+            const buttonX = CONFIG.CANVAS_WIDTH / 2 - buttonWidth / 2;
+            const backButtonY = CONFIG.CANVAS_HEIGHT / 2 + 170;
+            this.ctx.fillStyle = '#E74C3C';
+            this.ctx.fillRect(buttonX, backButtonY, buttonWidth, buttonHeight);
+            this.ctx.strokeStyle = '#FFFFFF';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(buttonX, backButtonY, buttonWidth, buttonHeight);
+            this.ctx.fillStyle = '#FFFFFF';
+            this.ctx.font = 'bold 18px monospace';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('Back to Menu', CONFIG.CANVAS_WIDTH / 2, backButtonY + 32);
+            this.wheelBackButtonBounds = { x: buttonX, y: backButtonY, width: buttonWidth, height: buttonHeight };
+        } else {
+            // Spin button
+            const buttonWidth = 200;
+            const buttonHeight = 50;
+            const buttonX = CONFIG.CANVAS_WIDTH / 2 - buttonWidth / 2;
+            const buttonY = CONFIG.CANVAS_HEIGHT / 2 + 100;
+            
+            const canSpin = this.points >= POINTS_MANAGER.WHEEL_COST && !this.wheelSpinning;
+            this.ctx.fillStyle = canSpin ? '#27AE60' : '#7F8C8D';
+            this.ctx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
+            this.ctx.strokeStyle = '#FFFFFF';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(buttonX, buttonY, buttonWidth, buttonHeight);
+            
+            this.ctx.fillStyle = '#FFFFFF';
+            this.ctx.font = 'bold 18px monospace';
+            this.ctx.textAlign = 'center';
+            if (this.wheelSpinning) {
+                this.ctx.fillText('Spinning...', CONFIG.CANVAS_WIDTH / 2, buttonY + 32);
+            } else if (canSpin) {
+                this.ctx.fillText(`Spin (${POINTS_MANAGER.WHEEL_COST} points)`, CONFIG.CANVAS_WIDTH / 2, buttonY + 32);
+            } else {
+                this.ctx.fillText(`Need ${POINTS_MANAGER.WHEEL_COST} points`, CONFIG.CANVAS_WIDTH / 2, buttonY + 32);
+            }
+            
+            this.wheelSpinButtonBounds = { x: buttonX, y: buttonY, width: buttonWidth, height: buttonHeight };
+        }
+        
+        this.ctx.textAlign = 'left';
+    }
+    
+    drawConfetti() {
+        for (let confetti of this.wheelConfetti) {
+            this.ctx.save();
+            this.ctx.translate(confetti.x, confetti.y);
+            this.ctx.rotate(confetti.rotation);
+            this.ctx.fillStyle = confetti.color;
+            this.ctx.globalAlpha = confetti.life;
+            this.ctx.fillRect(-confetti.size / 2, -confetti.size / 2, confetti.size, confetti.size);
+            this.ctx.restore();
         }
     }
     
