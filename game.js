@@ -1177,8 +1177,12 @@ class Game {
                 // Spin complete - determine which square is in the center
                 this.wheelSpinning = false;
                 
+                // Use the same calculation as in drawWheelOfFortune to center one card
+                // Center one card in the middle, show others on sides
+                const wheelStartX = centerX - (WHEEL_CONFIG.SQUARE_WIDTH / 2) - 
+                                   (Math.floor(WHEEL_CONFIG.SQUARES_COUNT / 2) * (WHEEL_CONFIG.SQUARE_WIDTH + WHEEL_CONFIG.SQUARE_SPACING));
+                
                 // Find which square is currently in the center
-                const wheelStartX = CONFIG.CANVAS_WIDTH / 2 - totalWidth / 2;
                 let centerSquareIndex = -1;
                 let minDistance = Infinity;
                 
@@ -1199,7 +1203,7 @@ class Game {
                 this.wheelSelectedSquareIndex = centerSquareIndex; // Save index for later use
                 this.wheelShowResult = true;
                 
-                // Center the winning square perfectly
+                // Center the winning square perfectly - recalculate with correct wheelStartX
                 const selectedSquareX = wheelStartX + (centerSquareIndex * (WHEEL_CONFIG.SQUARE_WIDTH + WHEEL_CONFIG.SQUARE_SPACING));
                 this.wheelSpinOffset = selectedSquareX + (WHEEL_CONFIG.SQUARE_WIDTH / 2) - centerX;
                 
@@ -1216,8 +1220,9 @@ class Game {
                 const easeOut = 1 - Math.pow(1 - progress, 4);
                 
                 // Calculate final position: random stop position
-                // We'll determine the winner based on what ends up in the center
-                const wheelStartX = CONFIG.CANVAS_WIDTH / 2 - totalWidth / 2;
+                // Use the same calculation as in drawWheelOfFortune to center one card
+                const wheelStartX = centerX - (WHEEL_CONFIG.SQUARE_WIDTH / 2) - 
+                                   (Math.floor(WHEEL_CONFIG.SQUARES_COUNT / 2) * (WHEEL_CONFIG.SQUARE_WIDTH + WHEEL_CONFIG.SQUARE_SPACING));
                 const selectedSquareX = wheelStartX + (this.wheelTargetSquareIndex * (WHEEL_CONFIG.SQUARE_WIDTH + WHEEL_CONFIG.SQUARE_SPACING));
                 const targetOffset = selectedSquareX + (WHEEL_CONFIG.SQUARE_WIDTH / 2) - centerX;
                 
