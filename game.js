@@ -551,6 +551,8 @@ class Game {
         this.wheelShowPrizeImage = false; // Flag to show prize image with delay
         this.wheelPrizeImageAlpha = 0; // Alpha for smooth fade-in of prize image
         this.wheelPrizeImageStartTime = 0; // Timer for prize image delay
+        this.wheelPrizeImageSize = 200; // Current size of prize image (animated from 200 to 290)
+        this.wheelPrizeImageScaleStartTime = 0; // Timer for scale animation
         this.wheelOriginalOrder = []; // Store original order of images
         this.allCompleteSpinButtonBounds = null; // Button bounds for ALL_COMPLETE screen
         this.allCompletePlayAgainButtonBounds = null; // Button bounds for ALL_COMPLETE screen
@@ -851,6 +853,8 @@ class Game {
                     this.wheelConfetti = [];
                     this.wheelShowPrizeImage = false;
                     this.wheelPrizeImageAlpha = 0;
+                    this.wheelPrizeImageScaleStartTime = 0;
+                    this.wheelPrizeImageSize = WHEEL_CONFIG.PRIZE_START_SIZE;
                     this.spinWheel(); // Start new spin
                     return true;
                 }
@@ -869,6 +873,8 @@ class Game {
                     this.wheelSpinOffset = 0;
                     this.wheelShowPrizeImage = false;
                     this.wheelPrizeImageAlpha = 0;
+                    this.wheelPrizeImageScaleStartTime = 0;
+                    this.wheelPrizeImageSize = WHEEL_CONFIG.PRIZE_START_SIZE;
                     this.points = POINTS_MANAGER.getPoints();
                     return true;
                 }
@@ -1197,6 +1203,8 @@ class Game {
                 this.wheelShowPrizeImage = false;
                 this.wheelPrizeImageAlpha = 0;
                 this.wheelPrizeImageStartTime = Date.now(); // Start timer for prize image delay
+                this.wheelPrizeImageScaleStartTime = 0; // Reset scale animation timer
+                this.wheelPrizeImageSize = WHEEL_CONFIG.PRIZE_START_SIZE; // Reset to start size
                 
                 // Create confetti
                 this.createConfetti();
@@ -1225,11 +1233,25 @@ class Game {
             if (timeSinceStop >= WHEEL_CONFIG.PRIZE_DELAY) {
                 // Start showing prize image with fade-in
                 this.wheelShowPrizeImage = true;
+                
+                // Start scale animation timer
+                if (this.wheelPrizeImageScaleStartTime === 0) {
+                    this.wheelPrizeImageScaleStartTime = Date.now();
+                }
+                
                 const fadeProgress = Math.min(
                     (timeSinceStop - WHEEL_CONFIG.PRIZE_DELAY) / WHEEL_CONFIG.PRIZE_FADE_DURATION,
                     1
                 );
                 this.wheelPrizeImageAlpha = fadeProgress;
+                
+                // Animate scale from 200 to 290 with smooth easing
+                const scaleTime = Date.now() - this.wheelPrizeImageScaleStartTime;
+                const scaleProgress = Math.min(scaleTime / WHEEL_CONFIG.PRIZE_SCALE_DURATION, 1);
+                // Use ease-out-cubic for smooth deceleration
+                const easeOutCubic = 1 - Math.pow(1 - scaleProgress, 3);
+                this.wheelPrizeImageSize = WHEEL_CONFIG.PRIZE_START_SIZE + 
+                                          (WHEEL_CONFIG.PRIZE_END_SIZE - WHEEL_CONFIG.PRIZE_START_SIZE) * easeOutCubic;
             }
         }
         
@@ -2484,8 +2506,8 @@ class Game {
                 // Use the image from the selected square (from shuffled array)
                 const prizeImg = this.wheelImages[selectedSquare.number];
                 
-                // Prize image size: 240x240px
-                const prizeImageSize = 240;
+                // Prize image size: animated from 200 to 290px
+                const prizeImageSize = this.wheelPrizeImageSize;
                 const prizeImageX = CONFIG.CANVAS_WIDTH / 2 - prizeImageSize / 2;
                 const prizeImageY = CONFIG.CANVAS_HEIGHT / 2 - prizeImageSize / 2 - 50;
                 
@@ -2493,20 +2515,23 @@ class Game {
                 this.ctx.save();
                 this.ctx.globalAlpha = this.wheelPrizeImageAlpha;
                 
-                // Liquid glass blur effect for background
-                // Draw blurred background overlay
-                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-                this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
-                
-                // Multiple layers for liquid glass effect
-                for (let i = 0; i < 3; i++) {
-                    const blurAlpha = 0.15 - (i * 0.05);
+                // Matte liquid glass blur effect for background (more opaque)
+                // Draw multiple layers for matte liquid glass effect
+                for (let i = 0; i < 5; i++) {
+                    const blurAlpha = 0.25 - (i * 0.04);
                     this.ctx.fillStyle = `rgba(200, 220, 255, ${blurAlpha})`;
                     this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
                 }
                 
-                // Dark overlay for contrast
-                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                // Additional white layers for matte effect
+                for (let i = 0; i < 3; i++) {
+                    const matteAlpha = 0.2 - (i * 0.06);
+                    this.ctx.fillStyle = `rgba(255, 255, 255, ${matteAlpha})`;
+                    this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
+                }
+                
+                // Dark overlay for contrast (more opaque)
+                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
                 this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
                 
                 if (prizeImg && prizeImg.complete && prizeImg.naturalWidth > 0) {
@@ -2617,21 +2642,23 @@ class Game {
             
             // Win message and buttons (only show after prize image appears)
             if (this.wheelShowPrizeImage && this.wheelPrizeImageAlpha > 0.5) {
-                // Win message (positioned below prize image)
-                const prizeImageSize = 240;
+                // Win message (positioned above prize image)
+                const prizeImageSize = this.wheelPrizeImageSize;
                 const prizeImageY = CONFIG.CANVAS_HEIGHT / 2 - prizeImageSize / 2 - 50;
                 this.ctx.fillStyle = '#FFFFFF';
                 this.ctx.font = 'bold 28px monospace';
                 this.ctx.textAlign = 'center';
-                const messageY = prizeImageY + prizeImageSize + 30;
+                const messageY = prizeImageY - 40; // Above the card
                 this.ctx.fillText(`You won: ${selectedSquare.number}!`, CONFIG.CANVAS_WIDTH / 2, messageY);
                 
                 // Buttons (3 buttons under the image, 20% smaller)
+                const prizeImageSize = this.wheelPrizeImageSize;
+                const prizeImageY = CONFIG.CANVAS_HEIGHT / 2 - prizeImageSize / 2 - 50;
                 const buttonWidth = 200; // 20% smaller (250 * 0.8)
                 const buttonHeight = 40; // 20% smaller (50 * 0.8)
                 const buttonX = CONFIG.CANVAS_WIDTH / 2 - buttonWidth / 2;
                 const buttonSpacing = 50; // Adjusted spacing
-                let currentButtonY = messageY + 40;
+                let currentButtonY = prizeImageY + prizeImageSize + 30; // Below the card
                 
                 // 1. Open Link button
                 this.ctx.fillStyle = '#27AE60';
