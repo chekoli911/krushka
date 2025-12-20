@@ -524,12 +524,18 @@ class Game {
         this.wheelSpinStartTime = 0;
         this.wheelSpinOffset = 0;
         this.wheelSelectedSquare = null;
+        this.wheelSelectedSquareIndex = null; // Index of selected square in shuffled array
         this.wheelTargetSquare = null; // Pre-selected square for spin
+        this.wheelTargetSquareIndex = null; // Index in shuffled array
+        this.wheelTotalRotations = 0; // Total rotations for current spin
         this.wheelConfetti = [];
         this.wheelShowResult = false;
         this.wheelShowPrizeImage = false; // Flag to show prize image with delay
         this.wheelPrizeImageAlpha = 0; // Alpha for smooth fade-in of prize image
         this.wheelPrizeImageStartTime = 0; // Timer for prize image delay
+        this.wheelOriginalOrder = []; // Store original order of images
+        this.allCompleteSpinButtonBounds = null; // Button bounds for ALL_COMPLETE screen
+        this.allCompletePlayAgainButtonBounds = null; // Button bounds for ALL_COMPLETE screen
         this.initWheelOfFortune();
         
         this.setupCanvas();
@@ -551,9 +557,10 @@ class Game {
         // Initialize wheel squares with numbers 1-12
         this.wheelSquares = [];
         this.wheelImages = {}; // Cache for loaded images
+        this.wheelOriginalOrder = []; // Store original order of images
         
         for (let i = 1; i <= WHEEL_CONFIG.SQUARES_COUNT; i++) {
-            this.wheelSquares.push({
+            this.wheelOriginalOrder.push({
                 number: i,
                 link: WHEEL_CONFIG.getLink(i),
                 imageUrl: WHEEL_CONFIG.getImage(i)
@@ -570,6 +577,20 @@ class Game {
                 console.warn(`Failed to load image for square ${i}`);
             };
         }
+        
+        // Initial shuffle
+        this.shuffleWheelSquares();
+    }
+    
+    shuffleWheelSquares() {
+        // Shuffle the order of squares before each spin
+        const shuffled = [...this.wheelOriginalOrder];
+        // Fisher-Yates shuffle algorithm
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        this.wheelSquares = shuffled;
     }
 
     setupCanvas() {
@@ -698,6 +719,57 @@ class Game {
         window.addEventListener('keydown', testHandler);
         
         // Helper function to check wheel button clicks
+        const checkAllCompleteButtonClick = (clientX, clientY) => {
+            if (this.state !== GAME_STATE.ALL_COMPLETE) return false;
+            if (!this.canvas) return false;
+            
+            const rect = this.canvas.getBoundingClientRect();
+            if (!rect || rect.width === 0 || rect.height === 0) return false;
+            
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+            const scaleX = this.canvas.width / (rect.width || 1);
+            const scaleY = this.canvas.height / (rect.height || 1);
+            const canvasX = x * scaleX;
+            const canvasY = y * scaleY;
+            
+            // Check Spin button
+            if (this.allCompleteSpinButtonBounds) {
+                const btn = this.allCompleteSpinButtonBounds;
+                if (canvasX >= btn.x && canvasX <= btn.x + btn.width &&
+                    canvasY >= btn.y && canvasY <= btn.y + btn.height) {
+                    // Reset wheel state and go to wheel
+                    this.wheelSpinning = false;
+                    this.wheelShowResult = false;
+                    this.wheelSelectedSquare = null;
+                    this.wheelConfetti = [];
+                    this.wheelSpinOffset = 0;
+                    this.state = GAME_STATE.WHEEL_OF_FORTUNE;
+                    return true;
+                }
+            }
+            
+            // Check Play Again button
+            if (this.allCompletePlayAgainButtonBounds) {
+                const btn = this.allCompletePlayAgainButtonBounds;
+                if (canvasX >= btn.x && canvasX <= btn.x + btn.width &&
+                    canvasY >= btn.y && canvasY <= btn.y + btn.height) {
+                    this.state = GAME_STATE.MENU;
+                    // Reset game state
+                    this.currentLevel = 0;
+                    this.score = 0;
+                    this.totalScore = 0;
+                    this.distance = 0;
+                    this.obstacles = [];
+                    this.lastSpawnTime = 0;
+                    this.lastObstacleX = -1000;
+                    return true;
+                }
+            }
+            
+            return false;
+        };
+        
         const checkWheelButtonClick = (clientX, clientY) => {
             if (this.state !== GAME_STATE.WHEEL_OF_FORTUNE) return false;
             if (!this.canvas) return false;
@@ -854,6 +926,16 @@ class Game {
         });
 
         this.canvas.addEventListener('touchstart', (e) => {
+            // Handle all complete screen touches
+            if (e.touches && e.touches.length > 0) {
+                const touch = e.touches[0];
+                if (checkAllCompleteButtonClick(touch.clientX, touch.clientY)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                }
+            }
+            
             // Handle wheel of fortune touches
             if (e.touches && e.touches.length > 0) {
                 const touch = e.touches[0];
@@ -892,6 +974,13 @@ class Game {
 
         // Also focus on click
         this.canvas.addEventListener('click', (e) => {
+            // Handle all complete screen clicks
+            if (checkAllCompleteButtonClick(e.clientX, e.clientY)) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            
             // Handle wheel of fortune clicks
             if (checkWheelButtonClick(e.clientX, e.clientY)) {
                 e.preventDefault();
@@ -977,20 +1066,8 @@ class Game {
             // Reload page to restart game
             window.location.reload();
         } else if (this.state === GAME_STATE.ALL_COMPLETE) {
-            // Check if player has 100+ points for Wheel of Fortune
-            this.points = POINTS_MANAGER.getPoints();
-            if (this.points >= POINTS_MANAGER.WHEEL_COST) {
-                // Reset wheel state
-                this.wheelSpinning = false;
-                this.wheelShowResult = false;
-                this.wheelSelectedSquare = null;
-                this.wheelConfetti = [];
-                this.wheelSpinOffset = 0;
-                this.state = GAME_STATE.WHEEL_OF_FORTUNE;
-            } else {
-            // Reload page to restart game
-            window.location.reload();
-            }
+            // Button clicks are handled by checkAllCompleteButtonClick
+            // No automatic action needed here
         } else if (this.state === GAME_STATE.WHEEL_OF_FORTUNE) {
             // Wheel interactions handled in click handlers
         }
@@ -1003,13 +1080,25 @@ class Game {
         // Spend points
         if (POINTS_MANAGER.spendPoints(POINTS_MANAGER.WHEEL_COST)) {
             this.points = POINTS_MANAGER.getPoints();
+            
+            // Shuffle squares before each spin
+            this.shuffleWheelSquares();
+            
+            // Reset spin state
             this.wheelSpinning = true;
             this.wheelSpinStartTime = Date.now();
             this.wheelShowResult = false;
             this.wheelSelectedSquare = null;
             this.wheelConfetti = [];
-            // Pre-select random square for this spin
-            this.wheelTargetSquare = Math.floor(Math.random() * WHEEL_CONFIG.SQUARES_COUNT) + 1;
+            this.wheelSpinOffset = 0; // Start from beginning
+            
+            // Random number of rotations (at least 8 full rotations)
+            const minRotations = 8;
+            const maxRotations = 12;
+            this.wheelTotalRotations = minRotations + Math.random() * (maxRotations - minRotations);
+            
+            // Randomly select which square will be the prize (after shuffling)
+            this.wheelTargetSquareIndex = Math.floor(Math.random() * WHEEL_CONFIG.SQUARES_COUNT);
         }
     }
     
@@ -1018,35 +1107,25 @@ class Game {
             const elapsed = Date.now() - this.wheelSpinStartTime;
             const progress = Math.min(elapsed / WHEEL_CONFIG.SPIN_DURATION, 1);
             
-            // Calculate target offset for pre-selected square
-            // Goal: center the selected square under the center indicator (arrow)
             const totalWidth = WHEEL_CONFIG.SQUARES_COUNT * WHEEL_CONFIG.SQUARE_WIDTH;
-            const wheelStartX = CONFIG.CANVAS_WIDTH / 2 - totalWidth / 2;
-            const selectedSquareIndex = this.wheelTargetSquare - 1;
-            const selectedSquareX = wheelStartX + (selectedSquareIndex * WHEEL_CONFIG.SQUARE_WIDTH);
             const centerX = CONFIG.CANVAS_WIDTH / 2;
-            // Center the square: move it so its center aligns with centerX
-            // The square's center is at selectedSquareX + SQUARE_WIDTH/2
-            // Current position after offset: selectedSquareX - wheelSpinOffset
-            // We want: (selectedSquareX - wheelSpinOffset) + SQUARE_WIDTH/2 = centerX
-            // So: wheelSpinOffset = selectedSquareX + SQUARE_WIDTH/2 - centerX
-            const targetOffset = selectedSquareX + (WHEEL_CONFIG.SQUARE_WIDTH / 2) - centerX;
-            
-            // Add extra rotations for visual effect (4-6 full rotations for smoother feel)
-            const extraRotations = 4 + Math.random() * 2;
-            const finalOffset = targetOffset + (extraRotations * totalWidth);
             
             if (progress >= 1) {
-                // Spin complete - ensure square is perfectly centered
+                // Spin complete - center the selected square under the arrow
                 this.wheelSpinning = false;
-                this.wheelSelectedSquare = this.wheelTargetSquare;
+                
+                // Get the selected square from shuffled array
+                const selectedSquare = this.wheelSquares[this.wheelTargetSquareIndex];
+                this.wheelSelectedSquare = selectedSquare.number;
+                this.wheelSelectedSquareIndex = this.wheelTargetSquareIndex; // Save index for later use
                 this.wheelShowResult = true;
-                // Set exact offset to center the square (without extra rotations for final position)
-                // Recalculate to ensure perfect centering
-                const selectedSquareIndex = this.wheelTargetSquare - 1;
-                const selectedSquareX = wheelStartX + (selectedSquareIndex * WHEEL_CONFIG.SQUARE_WIDTH);
+                
+                // Calculate exact offset to center the selected square
+                const wheelStartX = CONFIG.CANVAS_WIDTH / 2 - totalWidth / 2;
+                const selectedSquareX = wheelStartX + (this.wheelTargetSquareIndex * WHEEL_CONFIG.SQUARE_WIDTH);
                 // Perfect centering: square center = centerX
                 this.wheelSpinOffset = selectedSquareX + (WHEEL_CONFIG.SQUARE_WIDTH / 2) - centerX;
+                
                 this.wheelShowPrizeImage = false;
                 this.wheelPrizeImageAlpha = 0;
                 this.wheelPrizeImageStartTime = Date.now(); // Start timer for prize image delay
@@ -1054,12 +1133,19 @@ class Game {
                 // Create confetti
                 this.createConfetti();
             } else {
-                // Very slow deceleration for smooth stop
-                // Use ease-out-quart for very smooth deceleration
+                // Smooth deceleration with ease-out-quart
                 const easeOut = 1 - Math.pow(1 - progress, 4);
                 
-                // Interpolate to final position with smooth deceleration
-                this.wheelSpinOffset = finalOffset * (1 - easeOut);
+                // Calculate final position: total rotations + target square position
+                const wheelStartX = CONFIG.CANVAS_WIDTH / 2 - totalWidth / 2;
+                const selectedSquareX = wheelStartX + (this.wheelTargetSquareIndex * WHEEL_CONFIG.SQUARE_WIDTH);
+                const targetOffset = selectedSquareX + (WHEEL_CONFIG.SQUARE_WIDTH / 2) - centerX;
+                
+                // Total distance = rotations + target offset
+                const totalDistance = (this.wheelTotalRotations * totalWidth) + targetOffset;
+                
+                // Interpolate with smooth deceleration
+                this.wheelSpinOffset = totalDistance * (1 - easeOut);
             }
         }
         
@@ -1195,13 +1281,13 @@ class Game {
         // Reset interaction time
         this.lastInteractionTime = Date.now();
         
-        // Start timer for 30 seconds
+        // Start timer for 15 seconds
         this.demoTimer = setTimeout(() => {
             if (this.state === GAME_STATE.MENU) {
-                // Auto-start demo mode after 30 seconds of inactivity
+                // Auto-start demo mode after 15 seconds of inactivity
                 this.handleDemoStart();
             }
-        }, 30000); // 30 seconds
+        }, 15000); // 15 seconds
     }
     
     resetDemoTimer() {
@@ -1670,7 +1756,7 @@ class Game {
             }
 
             // Check level complete - use score instead of distance
-            const targetScore = 50; // Fixed score target for all levels
+            const targetScore = this.demoMode ? 75 : 50; // 75 for demo mode, 50 for normal mode
             if (this.score >= targetScore) {
                 // Add current level score to total score
                 this.totalScore += this.score;
@@ -2002,15 +2088,53 @@ class Game {
         this.ctx.fillStyle = '#F39C12';
         this.ctx.font = 'bold 28px monospace';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText('Congratulations!', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 80);
+        this.ctx.fillText('Congratulations!', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 120);
         
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = '18px monospace';
-        this.ctx.fillText(`You finished all ${LEVELS.length} levels!`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 40);
+        this.ctx.fillText(`You finished all ${LEVELS.length} levels!`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 80);
         this.ctx.font = '20px monospace';
-        this.ctx.fillText(`Final Score: ${this.totalScore}`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2);
-        this.ctx.font = '16px monospace';
-        this.ctx.fillText('Tap to Restart', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 40);
+        this.ctx.fillText(`Final Score: ${this.totalScore}`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 40);
+        
+        // Draw buttons
+        const buttonWidth = 250;
+        const buttonHeight = 50;
+        const buttonX = CONFIG.CANVAS_WIDTH / 2 - buttonWidth / 2;
+        const buttonSpacing = 60;
+        let currentButtonY = CONFIG.CANVAS_HEIGHT / 2;
+        
+        // Check if player has enough points for wheel
+        this.points = POINTS_MANAGER.getPoints();
+        const canSpin = this.points >= POINTS_MANAGER.WHEEL_COST;
+        
+        // 1. Spin button (if has enough points)
+        if (canSpin) {
+            this.ctx.fillStyle = '#27AE60';
+            this.ctx.fillRect(buttonX, currentButtonY, buttonWidth, buttonHeight);
+            this.ctx.strokeStyle = '#FFFFFF';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(buttonX, currentButtonY, buttonWidth, buttonHeight);
+            this.ctx.fillStyle = '#FFFFFF';
+            this.ctx.font = 'bold 18px monospace';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(`Spin (${POINTS_MANAGER.WHEEL_COST} points)`, CONFIG.CANVAS_WIDTH / 2, currentButtonY + 32);
+            this.allCompleteSpinButtonBounds = { x: buttonX, y: currentButtonY, width: buttonWidth, height: buttonHeight };
+            currentButtonY += buttonSpacing;
+        } else {
+            this.allCompleteSpinButtonBounds = null;
+        }
+        
+        // 2. Play Again button
+        this.ctx.fillStyle = '#3498DB';
+        this.ctx.fillRect(buttonX, currentButtonY, buttonWidth, buttonHeight);
+        this.ctx.strokeStyle = '#FFFFFF';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(buttonX, currentButtonY, buttonWidth, buttonHeight);
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.font = 'bold 18px monospace';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('Play Again', CONFIG.CANVAS_WIDTH / 2, currentButtonY + 32);
+        this.allCompletePlayAgainButtonBounds = { x: buttonX, y: currentButtonY, width: buttonWidth, height: buttonHeight };
 
         this.ctx.textAlign = 'left';
     }
@@ -2221,9 +2345,9 @@ class Game {
         }
         
         // Spin button or result
-        if (this.wheelShowResult && this.wheelSelectedSquare) {
+        if (this.wheelShowResult && this.wheelSelectedSquare !== null && this.wheelSelectedSquareIndex !== null) {
             // Show result with prize image and link button
-            const selectedSquare = this.wheelSquares.find(s => s.number === this.wheelSelectedSquare);
+            const selectedSquare = this.wheelSquares[this.wheelSelectedSquareIndex];
             
             // Draw prize image (only if delay has passed and fade-in is active)
             if (this.wheelShowPrizeImage && this.wheelPrizeImageAlpha > 0) {
