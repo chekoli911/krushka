@@ -216,7 +216,7 @@ const WHEEL_CONFIG = {
     SQUARES_COUNT: 12,
     SQUARE_WIDTH: 150, // Increased from 120
     SQUARE_HEIGHT: 150, // Increased from 120
-    SPIN_DURATION: 5000, // 5 seconds for slower, smoother animation
+    SPIN_DURATION: 10000, // 10 seconds for slower, smoother animation (doubled)
     PRIZE_DELAY: 3000, // 3 seconds delay before showing prize image (pause after spin stops)
     PRIZE_FADE_DURATION: 1000, // 1 second for prize image fade-in
     BASE_URL: 'https://arenapsgm.ru/',
@@ -2345,8 +2345,6 @@ class Game {
                 
                 // Check if this square is selected (the one that stopped)
                 const isSelected = this.wheelShowResult && i === this.wheelSelectedSquareIndex;
-                const squareCenterX = squareX + WHEEL_CONFIG.SQUARE_WIDTH / 2;
-                const distanceFromCenter = Math.abs(squareCenterX - centerX);
                 
                 // Modern color palette - gradient backgrounds
                 const modernColors = [
@@ -2359,117 +2357,66 @@ class Game {
                 ];
                 const [color1, color2] = modernColors[i];
                 
-                // Lens effect for selected square - save context
+                // Save context
                 this.ctx.save();
                 
+                // Modern gradient background
+                const squareGradient = this.ctx.createLinearGradient(
+                    squareX, wheelY,
+                    squareX + WHEEL_CONFIG.SQUARE_WIDTH, wheelY + wheelHeight
+                );
+                squareGradient.addColorStop(0, color1);
+                squareGradient.addColorStop(1, color2);
+                this.ctx.fillStyle = squareGradient;
+                
+                // Enhanced glow for selected square
                 if (isSelected && !this.wheelSpinning) {
-                    // Create lens/magnifying glass effect
-                    const lensSize = WHEEL_CONFIG.SQUARE_WIDTH * 1.5; // 1.5x magnification
-                    const lensX = centerX - lensSize / 2;
-                    const lensY = wheelY - (lensSize - wheelHeight) / 2;
-                    
-                    // Create clipping path for lens (circular)
-                    this.ctx.beginPath();
-                    this.ctx.arc(centerX, wheelY + wheelHeight / 2, lensSize / 2, 0, Math.PI * 2);
-                    this.ctx.clip();
-                    
-                    // Draw magnified image with lens distortion effect
-                    const img = this.wheelImages[square.number];
-                    if (img && img.complete && img.naturalWidth > 0) {
-                        // Draw enlarged image
-                        this.ctx.drawImage(
-                            img,
-                            lensX,
-                            lensY,
-                            lensSize,
-                            lensSize
-                        );
-                    }
-                    
-                    // Lens glass effect - semi-transparent overlay with highlights
-                    this.ctx.globalAlpha = 0.3;
-                    const lensGradient = this.ctx.createRadialGradient(
-                        centerX, wheelY + wheelHeight / 2, 0,
-                        centerX, wheelY + wheelHeight / 2, lensSize / 2
-                    );
-                    lensGradient.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
-                    lensGradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.1)');
-                    lensGradient.addColorStop(1, 'rgba(0, 0, 0, 0.2)');
-                    this.ctx.fillStyle = lensGradient;
-                    this.ctx.fillRect(lensX, lensY, lensSize, lensSize);
-                    
-                    // Lens border/rim
-                    this.ctx.globalAlpha = 1;
-                    this.ctx.strokeStyle = '#FFD700';
-                    this.ctx.lineWidth = 4;
-                    this.ctx.shadowBlur = 20;
+                    this.ctx.shadowBlur = 30;
                     this.ctx.shadowColor = '#FFD700';
-                    this.ctx.beginPath();
-                    this.ctx.arc(centerX, wheelY + wheelHeight / 2, lensSize / 2, 0, Math.PI * 2);
-                    this.ctx.stroke();
-                    
-                    this.ctx.restore();
-                    
-                    // Draw lens highlight reflection
-                    this.ctx.save();
-                    const highlightGradient = this.ctx.createRadialGradient(
-                        centerX - lensSize / 4, wheelY + wheelHeight / 2 - lensSize / 4, 0,
-                        centerX - lensSize / 4, wheelY + wheelHeight / 2 - lensSize / 4, lensSize / 3
-                    );
-                    highlightGradient.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
-                    highlightGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-                    this.ctx.fillStyle = highlightGradient;
-                    this.ctx.beginPath();
-                    this.ctx.arc(centerX - lensSize / 4, wheelY + wheelHeight / 2 - lensSize / 4, lensSize / 3, 0, Math.PI * 2);
-                    this.ctx.fill();
-                    this.ctx.restore();
                 } else {
-                    // Regular square drawing
-                    // Modern gradient background
-                    const squareGradient = this.ctx.createLinearGradient(
-                        squareX, wheelY,
-                        squareX + WHEEL_CONFIG.SQUARE_WIDTH, wheelY + wheelHeight
-                    );
-                    squareGradient.addColorStop(0, color1);
-                    squareGradient.addColorStop(1, color2);
-                    this.ctx.fillStyle = squareGradient;
-                    
-                    // Rounded corners effect (simulated with shadow)
                     this.ctx.shadowBlur = 20;
                     this.ctx.shadowColor = color1;
-                    this.ctx.fillRect(squareX, wheelY, WHEEL_CONFIG.SQUARE_WIDTH, wheelHeight);
-                    this.ctx.shadowBlur = 0;
-                    
-                    // Draw image if loaded
-                    const img = this.wheelImages[square.number];
-                    if (img && img.complete && img.naturalWidth > 0) {
-                        // Draw image with padding and opacity
-                        const padding = 6;
-                        this.ctx.globalAlpha = 0.9;
-                        this.ctx.drawImage(
-                            img,
-                            squareX + padding,
-                            wheelY + padding,
-                            WHEEL_CONFIG.SQUARE_WIDTH - (padding * 2),
-                            wheelHeight - (padding * 2)
-                        );
-                        this.ctx.globalAlpha = 1;
-                    } else {
-                        // Fallback: show number if image not loaded
-                        this.ctx.fillStyle = '#FFFFFF';
-                        this.ctx.font = 'bold 24px monospace';
-                        this.ctx.textAlign = 'center';
-                        this.ctx.fillText(square.number.toString(), squareX + WHEEL_CONFIG.SQUARE_WIDTH / 2, wheelY + wheelHeight / 2);
-                    }
-                    
-                    // Modern border with subtle glow
+                }
+                
+                this.ctx.fillRect(squareX, wheelY, WHEEL_CONFIG.SQUARE_WIDTH, wheelHeight);
+                this.ctx.shadowBlur = 0;
+                
+                // Draw image if loaded
+                const img = this.wheelImages[square.number];
+                if (img && img.complete && img.naturalWidth > 0) {
+                    // Draw image with padding and opacity
+                    const padding = 6;
+                    this.ctx.globalAlpha = 0.9;
+                    this.ctx.drawImage(
+                        img,
+                        squareX + padding,
+                        wheelY + padding,
+                        WHEEL_CONFIG.SQUARE_WIDTH - (padding * 2),
+                        wheelHeight - (padding * 2)
+                    );
+                    this.ctx.globalAlpha = 1;
+                } else {
+                    // Fallback: show number if image not loaded
+                    this.ctx.fillStyle = '#FFFFFF';
+                    this.ctx.font = 'bold 24px monospace';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText(square.number.toString(), squareX + WHEEL_CONFIG.SQUARE_WIDTH / 2, wheelY + wheelHeight / 2);
+                }
+                
+                // Modern border with subtle glow
+                if (isSelected && !this.wheelSpinning) {
+                    this.ctx.strokeStyle = '#FFD700';
+                    this.ctx.lineWidth = 3;
+                    this.ctx.shadowBlur = 15;
+                    this.ctx.shadowColor = '#FFD700';
+                } else {
                     this.ctx.strokeStyle = '#FFFFFF';
                     this.ctx.lineWidth = 2;
                     this.ctx.shadowBlur = 8;
                     this.ctx.shadowColor = color1;
-                    this.ctx.strokeRect(squareX, wheelY, WHEEL_CONFIG.SQUARE_WIDTH, wheelHeight);
-                    this.ctx.shadowBlur = 0;
                 }
+                this.ctx.strokeRect(squareX, wheelY, WHEEL_CONFIG.SQUARE_WIDTH, wheelHeight);
+                this.ctx.shadowBlur = 0;
                 
                 this.ctx.restore();
             }
@@ -2500,11 +2447,10 @@ class Game {
                 // Use the image from the selected square (from shuffled array)
                 const prizeImg = this.wheelImages[selectedSquare.number];
                 
-                // Full screen prize image
-                const prizeImageX = 0;
-                const prizeImageY = 0;
-                const prizeImageWidth = CONFIG.CANVAS_WIDTH;
-                const prizeImageHeight = CONFIG.CANVAS_HEIGHT;
+                // Prize image size: 200x200px
+                const prizeImageSize = 200;
+                const prizeImageX = CONFIG.CANVAS_WIDTH / 2 - prizeImageSize / 2;
+                const prizeImageY = CONFIG.CANVAS_HEIGHT / 2 - prizeImageSize / 2 - 50;
                 
                 // Save context for alpha
                 this.ctx.save();
@@ -2515,51 +2461,101 @@ class Game {
                 this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
                 
                 if (prizeImg && prizeImg.complete && prizeImg.naturalWidth > 0) {
-                    // Calculate aspect ratio to maintain image proportions
-                    const imgAspect = prizeImg.width / prizeImg.height;
-                    const canvasAspect = CONFIG.CANVAS_WIDTH / CONFIG.CANVAS_HEIGHT;
-                    
-                    let drawWidth, drawHeight, drawX, drawY;
-                    
-                    if (imgAspect > canvasAspect) {
-                        // Image is wider - fit to width
-                        drawWidth = CONFIG.CANVAS_WIDTH;
-                        drawHeight = CONFIG.CANVAS_WIDTH / imgAspect;
-                        drawX = 0;
-                        drawY = (CONFIG.CANVAS_HEIGHT - drawHeight) / 2;
-                    } else {
-                        // Image is taller - fit to height
-                        drawWidth = CONFIG.CANVAS_HEIGHT * imgAspect;
-                        drawHeight = CONFIG.CANVAS_HEIGHT;
-                        drawX = (CONFIG.CANVAS_WIDTH - drawWidth) / 2;
-                        drawY = 0;
-                    }
-                    
-                    // Draw image with golden glow
-                    this.ctx.shadowBlur = 50;
+                    // Draw image
+                    this.ctx.shadowBlur = 30;
                     this.ctx.shadowColor = '#FFD700';
                     this.ctx.drawImage(
                         prizeImg,
-                        drawX,
-                        drawY,
-                        drawWidth,
-                        drawHeight
+                        prizeImageX,
+                        prizeImageY,
+                        prizeImageSize,
+                        prizeImageSize
                     );
                     this.ctx.shadowBlur = 0;
                     
-                    // Draw golden border around prize image
-                    this.ctx.strokeStyle = '#FFD700';
-                    this.ctx.lineWidth = 8;
-                    this.ctx.shadowBlur = 20;
-                    this.ctx.shadowColor = '#FFD700';
-                    this.ctx.strokeRect(drawX, drawY, drawWidth, drawHeight);
+                    // Modern liquid glass frame effect
+                    const frameThickness = 12;
+                    const framePadding = 8;
+                    
+                    // Outer glass frame - liquid transparent effect
+                    this.ctx.save();
+                    
+                    // Create glass gradient (liquid effect)
+                    const glassGradient = this.ctx.createLinearGradient(
+                        prizeImageX - frameThickness, prizeImageY - frameThickness,
+                        prizeImageX + prizeImageSize + frameThickness, prizeImageY + prizeImageSize + frameThickness
+                    );
+                    glassGradient.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
+                    glassGradient.addColorStop(0.2, 'rgba(173, 216, 230, 0.4)');
+                    glassGradient.addColorStop(0.5, 'rgba(135, 206, 250, 0.5)');
+                    glassGradient.addColorStop(0.8, 'rgba(173, 216, 230, 0.4)');
+                    glassGradient.addColorStop(1, 'rgba(255, 255, 255, 0.3)');
+                    
+                    // Draw glass frame with rounded corners effect
+                    const frameX = prizeImageX - frameThickness;
+                    const frameY = prizeImageY - frameThickness;
+                    const frameSize = prizeImageSize + (frameThickness * 2);
+                    
+                    // Glass frame background
+                    this.ctx.fillStyle = glassGradient;
+                    this.ctx.fillRect(frameX, frameY, frameSize, frameSize);
+                    
+                    // Glass highlight reflections (liquid effect)
+                    const highlightGradient1 = this.ctx.createLinearGradient(
+                        frameX, frameY,
+                        frameX + frameSize, frameY + frameSize * 0.3
+                    );
+                    highlightGradient1.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
+                    highlightGradient1.addColorStop(0.5, 'rgba(255, 255, 255, 0.2)');
+                    highlightGradient1.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                    this.ctx.fillStyle = highlightGradient1;
+                    this.ctx.fillRect(frameX, frameY, frameSize, frameSize * 0.3);
+                    
+                    // Side highlight
+                    const highlightGradient2 = this.ctx.createLinearGradient(
+                        frameX, frameY,
+                        frameX + frameSize * 0.2, frameY + frameSize
+                    );
+                    highlightGradient2.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
+                    highlightGradient2.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                    this.ctx.fillStyle = highlightGradient2;
+                    this.ctx.fillRect(frameX, frameY, frameSize * 0.2, frameSize);
+                    
+                    // Glass border - liquid edge effect
+                    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+                    this.ctx.lineWidth = 3;
+                    this.ctx.shadowBlur = 15;
+                    this.ctx.shadowColor = 'rgba(135, 206, 250, 0.8)';
+                    this.ctx.strokeRect(frameX, frameY, frameSize, frameSize);
+                    
+                    // Inner glass border
+                    this.ctx.strokeStyle = 'rgba(173, 216, 230, 0.6)';
+                    this.ctx.lineWidth = 2;
                     this.ctx.shadowBlur = 0;
+                    this.ctx.strokeRect(
+                        prizeImageX - framePadding,
+                        prizeImageY - framePadding,
+                        prizeImageSize + (framePadding * 2),
+                        prizeImageSize + (framePadding * 2)
+                    );
+                    
+                    this.ctx.shadowBlur = 0;
+                    this.ctx.restore();
+                    
+                    // Draw image again on top (to ensure it's above glass effects)
+                    this.ctx.drawImage(
+                        prizeImg,
+                        prizeImageX,
+                        prizeImageY,
+                        prizeImageSize,
+                        prizeImageSize
+                    );
                 } else {
                     // Fallback: show number if image not loaded
                     this.ctx.fillStyle = '#FFD700';
-                    this.ctx.font = 'bold 72px monospace';
+                    this.ctx.font = 'bold 48px monospace';
                     this.ctx.textAlign = 'center';
-                    this.ctx.fillText(`#${selectedSquare.number}`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2);
+                    this.ctx.fillText(`#${selectedSquare.number}`, CONFIG.CANVAS_WIDTH / 2, prizeImageY + prizeImageSize / 2);
                 }
                 
                 this.ctx.restore();
@@ -2567,11 +2563,13 @@ class Game {
             
             // Win message and buttons (only show after prize image appears)
             if (this.wheelShowPrizeImage && this.wheelPrizeImageAlpha > 0.5) {
-                // Win message (positioned at bottom)
+                // Win message (positioned below prize image)
+                const prizeImageSize = 200;
+                const prizeImageY = CONFIG.CANVAS_HEIGHT / 2 - prizeImageSize / 2 - 50;
                 this.ctx.fillStyle = '#FFFFFF';
                 this.ctx.font = 'bold 28px monospace';
                 this.ctx.textAlign = 'center';
-                const messageY = CONFIG.CANVAS_HEIGHT - 180;
+                const messageY = prizeImageY + prizeImageSize + 30;
                 this.ctx.fillText(`You won: ${selectedSquare.number}!`, CONFIG.CANVAS_WIDTH / 2, messageY);
                 
                 // Buttons (3 buttons under the image)
