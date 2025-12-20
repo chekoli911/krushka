@@ -223,12 +223,12 @@ const WHEEL_CONFIG = {
     
     // Images for each square (1-12)
     IMAGES: [
-        'https://static.tildacdn.com/stor3537-3737-4635-a535-643336663233/19172606.jpg',
-        'https://static.tildacdn.com/stor3030-6230-4230-a566-333630376238/19090300.jpg',
-        'https://static.tildacdn.com/stor3430-6238-4430-b162-633431303163/31905856.jpg',
-        'https://static.tildacdn.com/stor6161-3266-4064-a139-363037313830/32528681.jpg',
-        'https://static.tildacdn.com/stor3737-6265-4465-b361-313430376663/92682172.png',
-        'https://static.tildacdn.com/stor3236-3239-4638-b963-343266613133/29471824.jpg',
+        'https://image.api.playstation.com/vulcan/ap/rnd/202509/1718/36050534f6a08332f7a0bd39cd3bf26f2136d43ea2ca64b9.png?w=440&thumb=false',
+        'https://image.api.playstation.com/vulcan/ap/rnd/202307/3122/d03e99601ae280104551105fc6e45adf5a589e73ecc04eba.png?w=440&thumb=false',
+        'https://image.api.playstation.com/vulcan/ap/rnd/202502/2113/5a7ae00a42d26b22990488aed07047b811c62e9cea404080.png?w=440&thumb=false',
+        'https://image.api.playstation.com/vulcan/ap/rnd/202512/1205/79661d7a2bdb9784749b4e57e1456ca89f7ac7bed8615aee.png?w=440&thumb=false',
+        'https://image.api.playstation.com/vulcan/ap/rnd/202511/2605/3d57b6ae9b22a4982f0272ef1c716ebbfee59b7ea1fe60af.png?w=440&thumb=false',
+        'https://image.api.playstation.com/vulcan/ap/rnd/202512/0221/8f2d0f07d57f878568ea58f2476fc3822622b50de0ce19b0.png?w=440&thumb=false',
         'https://static.tildacdn.com/stor6461-3137-4562-b838-633463303430/33211320.jpg',
         'https://static.tildacdn.com/stor6639-3432-4936-b663-646134313133/45101323.jpg',
         'https://static.tildacdn.com/stor3665-3334-4431-b362-363031396236/47965198.jpg',
