@@ -2348,8 +2348,11 @@ class Game {
         // Calculate total width with spacing
         const totalWidth = (WHEEL_CONFIG.SQUARES_COUNT * WHEEL_CONFIG.SQUARE_WIDTH) + 
                           ((WHEEL_CONFIG.SQUARES_COUNT - 1) * WHEEL_CONFIG.SQUARE_SPACING);
-        const wheelStartX = CONFIG.CANVAS_WIDTH / 2 - totalWidth / 2;
         const centerX = CONFIG.CANVAS_WIDTH / 2;
+        // Center one card in the middle, show others on sides
+        // Start position: center card should be at centerX, so offset by half a card width
+        const wheelStartX = centerX - (WHEEL_CONFIG.SQUARE_WIDTH / 2) - 
+                           (Math.floor(WHEEL_CONFIG.SQUARES_COUNT / 2) * (WHEEL_CONFIG.SQUARE_WIDTH + WHEEL_CONFIG.SQUARE_SPACING));
         
         // Dark background for wheel area
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
@@ -2463,12 +2466,12 @@ class Game {
         
         // Show selected square highlight when wheel stops (before prize image appears)
         if (this.wheelShowResult && this.wheelSelectedSquareIndex !== null && !this.wheelShowPrizeImage) {
-            // Show message that wheel stopped
+            // Show message that wheel stopped (moved down by 100px)
             const selectedSquare = this.wheelSquares[this.wheelSelectedSquareIndex];
             this.ctx.fillStyle = '#FFFFFF';
             this.ctx.font = 'bold 28px monospace';
             this.ctx.textAlign = 'center';
-            this.ctx.fillText(`You won square #${selectedSquare.number}!`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2);
+            this.ctx.fillText(`You won square #${selectedSquare.number}!`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 100);
         }
         
         // Spin button or result
@@ -2490,8 +2493,20 @@ class Game {
                 this.ctx.save();
                 this.ctx.globalAlpha = this.wheelPrizeImageAlpha;
                 
-                // Dark overlay background
-                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                // Liquid glass blur effect for background
+                // Draw blurred background overlay
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
+                
+                // Multiple layers for liquid glass effect
+                for (let i = 0; i < 3; i++) {
+                    const blurAlpha = 0.15 - (i * 0.05);
+                    this.ctx.fillStyle = `rgba(200, 220, 255, ${blurAlpha})`;
+                    this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
+                }
+                
+                // Dark overlay for contrast
+                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
                 this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
                 
                 if (prizeImg && prizeImg.complete && prizeImg.naturalWidth > 0) {
@@ -2507,71 +2522,76 @@ class Game {
                     );
                     this.ctx.shadowBlur = 0;
                     
-                    // Modern liquid glass frame effect
-                    const frameThickness = 12;
+                    // Diamond-like shimmering frame effect
+                    const frameThickness = 15;
                     const framePadding = 8;
-                    
-                    // Outer glass frame - liquid transparent effect
-                    this.ctx.save();
-                    
-                    // Create glass gradient (liquid effect)
-                    const glassGradient = this.ctx.createLinearGradient(
-                        prizeImageX - frameThickness, prizeImageY - frameThickness,
-                        prizeImageX + prizeImageSize + frameThickness, prizeImageY + prizeImageSize + frameThickness
-                    );
-                    glassGradient.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
-                    glassGradient.addColorStop(0.2, 'rgba(173, 216, 230, 0.4)');
-                    glassGradient.addColorStop(0.5, 'rgba(135, 206, 250, 0.5)');
-                    glassGradient.addColorStop(0.8, 'rgba(173, 216, 230, 0.4)');
-                    glassGradient.addColorStop(1, 'rgba(255, 255, 255, 0.3)');
-                    
-                    // Draw glass frame with rounded corners effect
                     const frameX = prizeImageX - frameThickness;
                     const frameY = prizeImageY - frameThickness;
                     const frameSize = prizeImageSize + (frameThickness * 2);
                     
-                    // Glass frame background
-                    this.ctx.fillStyle = glassGradient;
-                    this.ctx.fillRect(frameX, frameY, frameSize, frameSize);
+                    // Animated rainbow gradient for diamond effect
+                    const time = Date.now() * 0.002; // Slow animation
+                    const centerFrameX = frameX + frameSize / 2;
+                    const centerFrameY = frameY + frameSize / 2;
                     
-                    // Glass highlight reflections (liquid effect)
-                    const highlightGradient1 = this.ctx.createLinearGradient(
+                    // Create animated rainbow gradient (diamond shimmer)
+                    const diamondGradient = this.ctx.createRadialGradient(
+                        centerFrameX, centerFrameY, 0,
+                        centerFrameX, centerFrameY, frameSize / 2
+                    );
+                    
+                    // Animated rainbow colors based on time
+                    const hue1 = (time * 50) % 360;
+                    const hue2 = (time * 50 + 60) % 360;
+                    const hue3 = (time * 50 + 120) % 360;
+                    const hue4 = (time * 50 + 180) % 360;
+                    
+                    diamondGradient.addColorStop(0, `hsla(${hue1}, 100%, 60%, 0.9)`);
+                    diamondGradient.addColorStop(0.25, `hsla(${hue2}, 100%, 70%, 0.8)`);
+                    diamondGradient.addColorStop(0.5, `hsla(${hue3}, 100%, 60%, 0.9)`);
+                    diamondGradient.addColorStop(0.75, `hsla(${hue4}, 100%, 70%, 0.8)`);
+                    diamondGradient.addColorStop(1, `hsla(${hue1}, 100%, 60%, 0.9)`);
+                    
+                    // Draw diamond frame with rounded corners
+                    this.ctx.save();
+                    this.ctx.fillStyle = diamondGradient;
+                    this.ctx.beginPath();
+                    this.ctx.roundRect(frameX, frameY, frameSize, frameSize, 20);
+                    this.ctx.fill();
+                    
+                    // Inner cutout for image
+                    this.ctx.globalCompositeOperation = 'destination-out';
+                    this.ctx.fillStyle = '#000000';
+                    this.ctx.beginPath();
+                    this.ctx.roundRect(prizeImageX - framePadding, prizeImageY - framePadding, 
+                                     prizeImageSize + (framePadding * 2), prizeImageSize + (framePadding * 2), 15);
+                    this.ctx.fill();
+                    this.ctx.globalCompositeOperation = 'source-over';
+                    
+                    // Diamond shimmer highlights
+                    const shimmerGradient = this.ctx.createLinearGradient(
                         frameX, frameY,
-                        frameX + frameSize, frameY + frameSize * 0.3
+                        frameX + frameSize, frameY + frameSize
                     );
-                    highlightGradient1.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
-                    highlightGradient1.addColorStop(0.5, 'rgba(255, 255, 255, 0.2)');
-                    highlightGradient1.addColorStop(1, 'rgba(255, 255, 255, 0)');
-                    this.ctx.fillStyle = highlightGradient1;
-                    this.ctx.fillRect(frameX, frameY, frameSize, frameSize * 0.3);
+                    shimmerGradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+                    shimmerGradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.3)');
+                    shimmerGradient.addColorStop(0.5, 'rgba(255, 255, 255, 0)');
+                    shimmerGradient.addColorStop(0.7, 'rgba(255, 255, 255, 0.3)');
+                    shimmerGradient.addColorStop(1, 'rgba(255, 255, 255, 0.8)');
                     
-                    // Side highlight
-                    const highlightGradient2 = this.ctx.createLinearGradient(
-                        frameX, frameY,
-                        frameX + frameSize * 0.2, frameY + frameSize
-                    );
-                    highlightGradient2.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
-                    highlightGradient2.addColorStop(1, 'rgba(255, 255, 255, 0)');
-                    this.ctx.fillStyle = highlightGradient2;
-                    this.ctx.fillRect(frameX, frameY, frameSize * 0.2, frameSize);
+                    this.ctx.fillStyle = shimmerGradient;
+                    this.ctx.beginPath();
+                    this.ctx.roundRect(frameX, frameY, frameSize, frameSize, 20);
+                    this.ctx.fill();
                     
-                    // Glass border - liquid edge effect
-                    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-                    this.ctx.lineWidth = 3;
-                    this.ctx.shadowBlur = 15;
-                    this.ctx.shadowColor = 'rgba(135, 206, 250, 0.8)';
-                    this.ctx.strokeRect(frameX, frameY, frameSize, frameSize);
-                    
-                    // Inner glass border
-                    this.ctx.strokeStyle = 'rgba(173, 216, 230, 0.6)';
-                    this.ctx.lineWidth = 2;
-                    this.ctx.shadowBlur = 0;
-                    this.ctx.strokeRect(
-                        prizeImageX - framePadding,
-                        prizeImageY - framePadding,
-                        prizeImageSize + (framePadding * 2),
-                        prizeImageSize + (framePadding * 2)
-                    );
+                    // Diamond border with glow
+                    this.ctx.strokeStyle = `hsl(${hue1}, 100%, 70%)`;
+                    this.ctx.lineWidth = 4;
+                    this.ctx.shadowBlur = 20;
+                    this.ctx.shadowColor = `hsla(${hue1}, 100%, 60%, 0.8)`;
+                    this.ctx.beginPath();
+                    this.ctx.roundRect(frameX, frameY, frameSize, frameSize, 20);
+                    this.ctx.stroke();
                     
                     this.ctx.shadowBlur = 0;
                     this.ctx.restore();
@@ -2606,11 +2626,11 @@ class Game {
                 const messageY = prizeImageY + prizeImageSize + 30;
                 this.ctx.fillText(`You won: ${selectedSquare.number}!`, CONFIG.CANVAS_WIDTH / 2, messageY);
                 
-                // Buttons (3 buttons under the image)
-                const buttonWidth = 250;
-                const buttonHeight = 50;
+                // Buttons (3 buttons under the image, 20% smaller)
+                const buttonWidth = 200; // 20% smaller (250 * 0.8)
+                const buttonHeight = 40; // 20% smaller (50 * 0.8)
                 const buttonX = CONFIG.CANVAS_WIDTH / 2 - buttonWidth / 2;
-                const buttonSpacing = 60;
+                const buttonSpacing = 50; // Adjusted spacing
                 let currentButtonY = messageY + 40;
                 
                 // 1. Open Link button
@@ -2621,9 +2641,9 @@ class Game {
                 this.ctx.strokeRect(buttonX, currentButtonY, buttonWidth, buttonHeight);
                 
                 this.ctx.fillStyle = '#FFFFFF';
-                this.ctx.font = 'bold 18px monospace';
+                this.ctx.font = 'bold 14px monospace'; // 25% smaller (18 * 0.75 = 13.5, rounded to 14)
                 this.ctx.textAlign = 'center';
-                this.ctx.fillText('Open Link', CONFIG.CANVAS_WIDTH / 2, currentButtonY + 32);
+                this.ctx.fillText('Open Link', CONFIG.CANVAS_WIDTH / 2, currentButtonY + 26); // Adjusted for smaller button
                 
                 // Store button bounds for click detection
                 this.wheelLinkButtonBounds = { x: buttonX, y: currentButtonY, width: buttonWidth, height: buttonHeight, link: selectedSquare.link };
@@ -2640,9 +2660,9 @@ class Game {
                     this.ctx.strokeRect(buttonX, currentButtonY, buttonWidth, buttonHeight);
                     
                     this.ctx.fillStyle = '#FFFFFF';
-                    this.ctx.font = 'bold 18px monospace';
+                    this.ctx.font = 'bold 14px monospace'; // 25% smaller
                     this.ctx.textAlign = 'center';
-                    this.ctx.fillText(`Spin Again (${POINTS_MANAGER.WHEEL_COST} points)`, CONFIG.CANVAS_WIDTH / 2, currentButtonY + 32);
+                    this.ctx.fillText(`Spin Again (${POINTS_MANAGER.WHEEL_COST} points)`, CONFIG.CANVAS_WIDTH / 2, currentButtonY + 26);
                     this.wheelSpinAgainButtonBounds = { x: buttonX, y: currentButtonY, width: buttonWidth, height: buttonHeight };
                     currentButtonY += buttonSpacing;
                 } else {
@@ -2657,9 +2677,9 @@ class Game {
                 this.ctx.strokeRect(buttonX, currentButtonY, buttonWidth, buttonHeight);
                 
                 this.ctx.fillStyle = '#FFFFFF';
-                this.ctx.font = 'bold 18px monospace';
+                this.ctx.font = 'bold 14px monospace'; // 25% smaller
                 this.ctx.textAlign = 'center';
-                this.ctx.fillText('Play Game Again', CONFIG.CANVAS_WIDTH / 2, currentButtonY + 32);
+                this.ctx.fillText('Play Game Again', CONFIG.CANVAS_WIDTH / 2, currentButtonY + 26);
                 this.wheelBackButtonBounds = { x: buttonX, y: currentButtonY, width: buttonWidth, height: buttonHeight };
             } else {
                 // Hide buttons until prize image appears
@@ -2668,11 +2688,11 @@ class Game {
                 this.wheelSpinAgainButtonBounds = null;
             }
         } else {
-            // Spin button (centered)
+            // Spin button (centered, moved down by 60px)
             const buttonWidth = 250;
             const buttonHeight = 50;
             const buttonX = CONFIG.CANVAS_WIDTH / 2 - buttonWidth / 2; // Centered
-            const buttonY = CONFIG.CANVAS_HEIGHT / 2 + 100;
+            const buttonY = CONFIG.CANVAS_HEIGHT / 2 + 160; // Moved down by 60px (was 100)
             
             const canSpin = this.points >= POINTS_MANAGER.WHEEL_COST && !this.wheelSpinning;
             this.ctx.fillStyle = canSpin ? '#27AE60' : '#7F8C8D';
