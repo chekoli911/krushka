@@ -1111,7 +1111,7 @@ class Game {
             const centerX = CONFIG.CANVAS_WIDTH / 2;
             
             if (progress >= 1) {
-                // Spin complete - center the selected square under the arrow
+                // Spin complete - stop randomly inside the selected square
                 this.wheelSpinning = false;
                 
                 // Get the selected square from shuffled array
@@ -1120,11 +1120,19 @@ class Game {
                 this.wheelSelectedSquareIndex = this.wheelTargetSquareIndex; // Save index for later use
                 this.wheelShowResult = true;
                 
-                // Calculate exact offset to center the selected square
+                // Calculate offset to stop randomly inside the selected square (not at center)
                 const wheelStartX = CONFIG.CANVAS_WIDTH / 2 - totalWidth / 2;
                 const selectedSquareX = wheelStartX + (this.wheelTargetSquareIndex * WHEEL_CONFIG.SQUARE_WIDTH);
-                // Perfect centering: square center = centerX
-                this.wheelSpinOffset = selectedSquareX + (WHEEL_CONFIG.SQUARE_WIDTH / 2) - centerX;
+                
+                // Random position inside the square (leave some margin from edges)
+                // Use 20% margin from each edge, so random position is in the middle 60% of the square
+                const margin = WHEEL_CONFIG.SQUARE_WIDTH * 0.2;
+                const randomOffsetInSquare = margin + Math.random() * (WHEEL_CONFIG.SQUARE_WIDTH - 2 * margin);
+                
+                // Position arrow at random point inside the square
+                // Arrow is at centerX, so we need: selectedSquareX + randomOffsetInSquare - wheelSpinOffset = centerX
+                // Therefore: wheelSpinOffset = selectedSquareX + randomOffsetInSquare - centerX
+                this.wheelSpinOffset = selectedSquareX + randomOffsetInSquare - centerX;
                 
                 this.wheelShowPrizeImage = false;
                 this.wheelPrizeImageAlpha = 0;
