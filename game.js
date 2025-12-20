@@ -1855,7 +1855,7 @@ class Game {
             }
 
             // Check level complete - use score instead of distance
-            const targetScore = this.demoMode ? 102 : 50; // 102 for demo mode, 50 for normal mode
+            const targetScore = this.demoMode ? 102 : 200; // 102 for demo mode, 200 for normal mode
             if (this.score >= targetScore) {
                 // Add current level score to total score
                 this.totalScore += this.score;
