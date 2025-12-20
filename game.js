@@ -172,7 +172,7 @@ const GAME_STATE = {
 // ==================== POINTS SYSTEM ====================
 const POINTS_MANAGER = {
     STORAGE_KEY: 'krushka_points',
-    POINTS_PER_8_LEVELS: 100,
+    POINTS_PER_8_LEVELS: 1000,
     WHEEL_COST: 100,
     
     getPoints() {
@@ -1803,7 +1803,7 @@ class Game {
                 // Add current level score to total score
                 this.totalScore += this.score;
                 
-                // Award 100 points for completing 8 levels (level index 7 = 8th level)
+                // Award 1000 points for completing 8 levels (level index 7 = 8th level)
                 if (!this.demoMode && this.currentLevel === 7) {
                     const newPoints = POINTS_MANAGER.addPoints(POINTS_MANAGER.POINTS_PER_8_LEVELS);
                     this.points = newPoints;
@@ -2447,8 +2447,8 @@ class Game {
                 // Use the image from the selected square (from shuffled array)
                 const prizeImg = this.wheelImages[selectedSquare.number];
                 
-                // Prize image size: 200x200px
-                const prizeImageSize = 200;
+                // Prize image size: 240x240px
+                const prizeImageSize = 240;
                 const prizeImageX = CONFIG.CANVAS_WIDTH / 2 - prizeImageSize / 2;
                 const prizeImageY = CONFIG.CANVAS_HEIGHT / 2 - prizeImageSize / 2 - 50;
                 
@@ -2564,7 +2564,7 @@ class Game {
             // Win message and buttons (only show after prize image appears)
             if (this.wheelShowPrizeImage && this.wheelPrizeImageAlpha > 0.5) {
                 // Win message (positioned below prize image)
-                const prizeImageSize = 200;
+                const prizeImageSize = 240;
                 const prizeImageY = CONFIG.CANVAS_HEIGHT / 2 - prizeImageSize / 2 - 50;
                 this.ctx.fillStyle = '#FFFFFF';
                 this.ctx.font = 'bold 28px monospace';
