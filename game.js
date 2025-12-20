@@ -2496,12 +2496,11 @@ class Game {
         
         // Show selected square highlight when wheel stops (before prize image appears)
         if (this.wheelShowResult && this.wheelSelectedSquareIndex !== null && !this.wheelShowPrizeImage) {
-            // Show message that wheel stopped (moved down by 100px)
-            const selectedSquare = this.wheelSquares[this.wheelSelectedSquareIndex];
+            // Show message that wheel stopped (moved down by 145px - was 100px, added 45px)
             this.ctx.fillStyle = '#FFFFFF';
             this.ctx.font = 'bold 28px monospace';
             this.ctx.textAlign = 'center';
-            this.ctx.fillText(`You won square #${selectedSquare.number}!`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 100);
+            this.ctx.fillText('You won a prize!', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 145);
         }
         
         // Spin button or result
