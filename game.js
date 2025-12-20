@@ -2504,15 +2504,15 @@ class Game {
             // Show result with prize image and link button
             const selectedSquare = this.wheelSquares[this.wheelSelectedSquareIndex];
             
+            // Prize image size: animated from 200 to 290px (declare once for use in both blocks)
+            const prizeImageSize = this.wheelPrizeImageSize;
+            const prizeImageY = CONFIG.CANVAS_HEIGHT / 2 - prizeImageSize / 2 - 50;
+            
             // Draw prize image (only if delay has passed and fade-in is active)
             if (this.wheelShowPrizeImage && this.wheelPrizeImageAlpha > 0) {
                 // Use the image from the selected square (from shuffled array)
                 const prizeImg = this.wheelImages[selectedSquare.number];
-                
-                // Prize image size: animated from 200 to 290px
-                const prizeImageSize = this.wheelPrizeImageSize;
                 const prizeImageX = CONFIG.CANVAS_WIDTH / 2 - prizeImageSize / 2;
-                const prizeImageY = CONFIG.CANVAS_HEIGHT / 2 - prizeImageSize / 2 - 50;
                 
                 // Save context for alpha
                 this.ctx.save();
@@ -2655,8 +2655,6 @@ class Game {
                 this.ctx.fillText(`You won: ${selectedSquare.number}!`, CONFIG.CANVAS_WIDTH / 2, messageY);
                 
                 // Buttons (3 buttons under the image, 20% smaller)
-                const prizeImageSize = this.wheelPrizeImageSize;
-                const prizeImageY = CONFIG.CANVAS_HEIGHT / 2 - prizeImageSize / 2 - 50;
                 const buttonWidth = 200; // 20% smaller (250 * 0.8)
                 const buttonHeight = 40; // 20% smaller (50 * 0.8)
                 const buttonX = CONFIG.CANVAS_WIDTH / 2 - buttonWidth / 2;
