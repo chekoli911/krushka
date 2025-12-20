@@ -216,7 +216,9 @@ const WHEEL_CONFIG = {
     SQUARES_COUNT: 12,
     SQUARE_WIDTH: 150, // Increased from 120
     SQUARE_HEIGHT: 150, // Increased from 120
-    SPIN_DURATION: 4000, // 4 seconds for smoother animation
+    SPIN_DURATION: 5000, // 5 seconds for slower, smoother animation
+    PRIZE_DELAY: 1500, // 1.5 seconds delay before showing prize image
+    PRIZE_FADE_DURATION: 1000, // 1 second for prize image fade-in
     BASE_URL: 'https://arenapsgm.ru/',
     
     // Images for each square (1-12)
@@ -525,6 +527,9 @@ class Game {
         this.wheelTargetSquare = null; // Pre-selected square for spin
         this.wheelConfetti = [];
         this.wheelShowResult = false;
+        this.wheelShowPrizeImage = false; // Flag to show prize image with delay
+        this.wheelPrizeImageAlpha = 0; // Alpha for smooth fade-in of prize image
+        this.wheelPrizeImageStartTime = 0; // Timer for prize image delay
         this.initWheelOfFortune();
         
         this.setupCanvas();
@@ -744,6 +749,22 @@ class Game {
                 }
             }
             
+            // Check Spin Again button
+            if (this.wheelSpinAgainButtonBounds && !this.wheelSpinning) {
+                const btn = this.wheelSpinAgainButtonBounds;
+                if (canvasX >= btn.x && canvasX <= btn.x + btn.width &&
+                    canvasY >= btn.y && canvasY <= btn.y + btn.height) {
+                    // Reset wheel state and spin again
+                    this.wheelShowResult = false;
+                    this.wheelSelectedSquare = null;
+                    this.wheelConfetti = [];
+                    this.wheelShowPrizeImage = false;
+                    this.wheelPrizeImageAlpha = 0;
+                    this.spinWheel(); // Start new spin
+                    return true;
+                }
+            }
+            
             // Check Play Again button
             if (this.wheelPlayAgainButtonBounds && !this.wheelSpinning) {
                 const btn = this.wheelPlayAgainButtonBounds;
@@ -755,6 +776,8 @@ class Game {
                     this.wheelConfetti = [];
                     this.wheelSpinning = false;
                     this.wheelSpinOffset = 0;
+                    this.wheelShowPrizeImage = false;
+                    this.wheelPrizeImageAlpha = 0;
                     this.points = POINTS_MANAGER.getPoints();
                     return true;
                 }
@@ -996,12 +1019,17 @@ class Game {
             const progress = Math.min(elapsed / WHEEL_CONFIG.SPIN_DURATION, 1);
             
             // Calculate target offset for pre-selected square
+            // Goal: center the selected square under the center indicator (arrow)
             const totalWidth = WHEEL_CONFIG.SQUARES_COUNT * WHEEL_CONFIG.SQUARE_WIDTH;
             const wheelStartX = CONFIG.CANVAS_WIDTH / 2 - totalWidth / 2;
             const selectedSquareIndex = this.wheelTargetSquare - 1;
             const selectedSquareX = wheelStartX + (selectedSquareIndex * WHEEL_CONFIG.SQUARE_WIDTH);
             const centerX = CONFIG.CANVAS_WIDTH / 2;
-            const targetOffset = selectedSquareX - centerX + (WHEEL_CONFIG.SQUARE_WIDTH / 2);
+            // Center the square: move it so its center aligns with centerX
+            // The square's center is at selectedSquareX + SQUARE_WIDTH/2
+            // We want: selectedSquareX + SQUARE_WIDTH/2 - wheelSpinOffset = centerX
+            // So: wheelSpinOffset = selectedSquareX + SQUARE_WIDTH/2 - centerX
+            const targetOffset = selectedSquareX + (WHEEL_CONFIG.SQUARE_WIDTH / 2) - centerX;
             
             // Add extra rotations for visual effect (4-6 full rotations for smoother feel)
             const extraRotations = 4 + Math.random() * 2;
@@ -1013,24 +1041,34 @@ class Game {
                 this.wheelSelectedSquare = this.wheelTargetSquare;
                 this.wheelShowResult = true;
                 this.wheelSpinOffset = finalOffset;
+                this.wheelShowPrizeImage = false;
+                this.wheelPrizeImageAlpha = 0;
+                this.wheelPrizeImageStartTime = Date.now(); // Start timer for prize image delay
                 
                 // Create confetti
                 this.createConfetti();
             } else {
-                // Modern easing: ease-out-expo for smooth deceleration
-                // Starts fast, slows down dramatically at the end
-                let easeOut;
-                if (progress < 0.7) {
-                    // Fast spinning phase
-                    easeOut = 1 - Math.pow(1 - (progress / 0.7), 2);
-                } else {
-                    // Slow deceleration phase
-                    const slowProgress = (progress - 0.7) / 0.3;
-                    easeOut = 0.7 + (0.3 * (1 - Math.pow(1 - slowProgress, 4)));
-                }
+                // Very slow deceleration for smooth stop
+                // Use ease-out-quart for very smooth deceleration
+                const easeOut = 1 - Math.pow(1 - progress, 4);
                 
                 // Interpolate to final position with smooth deceleration
                 this.wheelSpinOffset = finalOffset * (1 - easeOut);
+            }
+        }
+        
+        // Handle prize image delay and fade-in
+        if (this.wheelShowResult && this.wheelSelectedSquare && !this.wheelSpinning) {
+            const timeSinceStop = Date.now() - (this.wheelPrizeImageStartTime || Date.now());
+            
+            if (timeSinceStop >= WHEEL_CONFIG.PRIZE_DELAY) {
+                // Start showing prize image with fade-in
+                this.wheelShowPrizeImage = true;
+                const fadeProgress = Math.min(
+                    (timeSinceStop - WHEEL_CONFIG.PRIZE_DELAY) / WHEEL_CONFIG.PRIZE_FADE_DURATION,
+                    1
+                );
+                this.wheelPrizeImageAlpha = fadeProgress;
             }
         }
         
@@ -1875,13 +1913,13 @@ class Game {
         this.ctx.fillStyle = '#FFFF00';
         this.ctx.fillText('Avoid obstacles!', canvasWidth / 2, canvasHeight / 2 + 10);
 
-        // Points display in menu (top right)
+        // Points display in menu (top right, moved down by 40px)
         this.ctx.font = 'bold 16px monospace';
         const pointsText = `Points: ${this.points || 0}`;
         const pointsWidth = this.ctx.measureText(pointsText).width;
         const pointsX = canvasWidth - pointsWidth - edgeOffset;
         this.ctx.fillStyle = '#FFD700'; // Gold color for points
-        this.ctx.fillText(pointsText, pointsX, 40);
+        this.ctx.fillText(pointsText, pointsX, 80); // Moved from 40 to 80 (40px lower)
         this.ctx.fillStyle = '#FFFFFF'; // Reset to white
         
         // Start button with border (smaller for vertical)
@@ -2165,86 +2203,133 @@ class Game {
         // Draw confetti
         this.drawConfetti();
         
+        // Show selected square highlight when wheel stops (before prize image appears)
+        if (this.wheelShowResult && this.wheelSelectedSquare && !this.wheelShowPrizeImage) {
+            // Show message that wheel stopped
+            this.ctx.fillStyle = '#FFFFFF';
+            this.ctx.font = 'bold 28px monospace';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(`You won square #${this.wheelSelectedSquare}!`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2);
+        }
+        
         // Spin button or result
         if (this.wheelShowResult && this.wheelSelectedSquare) {
             // Show result with prize image and link button
             const selectedSquare = this.wheelSquares.find(s => s.number === this.wheelSelectedSquare);
             
-            // Draw prize image
-            const prizeImg = this.wheelImages[this.wheelSelectedSquare];
-            const prizeImageSize = 200; // Size of prize image
-            const prizeImageX = CONFIG.CANVAS_WIDTH / 2 - prizeImageSize / 2;
-            const prizeImageY = CONFIG.CANVAS_HEIGHT / 2 - 50;
-            
-            if (prizeImg && prizeImg.complete && prizeImg.naturalWidth > 0) {
-                // Draw image with border/glow
-                this.ctx.shadowBlur = 20;
-                this.ctx.shadowColor = '#FFD700';
-                this.ctx.drawImage(
-                    prizeImg,
-                    prizeImageX,
-                    prizeImageY,
-                    prizeImageSize,
-                    prizeImageSize
-                );
-                this.ctx.shadowBlur = 0;
+            // Draw prize image (only if delay has passed and fade-in is active)
+            if (this.wheelShowPrizeImage && this.wheelPrizeImageAlpha > 0) {
+                const prizeImg = this.wheelImages[this.wheelSelectedSquare];
+                const prizeImageSize = Math.min(CONFIG.CANVAS_WIDTH - 40, CONFIG.CANVAS_HEIGHT - 200); // Full screen with padding
+                const prizeImageX = CONFIG.CANVAS_WIDTH / 2 - prizeImageSize / 2;
+                const prizeImageY = CONFIG.CANVAS_HEIGHT / 2 - prizeImageSize / 2;
                 
-                // Draw border around prize image
-                this.ctx.strokeStyle = '#FFD700';
-                this.ctx.lineWidth = 4;
-                this.ctx.strokeRect(prizeImageX, prizeImageY, prizeImageSize, prizeImageSize);
-            } else {
-                // Fallback: show number if image not loaded
-                this.ctx.fillStyle = '#FFD700';
-                this.ctx.font = 'bold 48px monospace';
-                this.ctx.textAlign = 'center';
-                this.ctx.fillText(`#${this.wheelSelectedSquare}`, CONFIG.CANVAS_WIDTH / 2, prizeImageY + prizeImageSize / 2);
+                // Save context for alpha
+                this.ctx.save();
+                this.ctx.globalAlpha = this.wheelPrizeImageAlpha;
+                
+                if (prizeImg && prizeImg.complete && prizeImg.naturalWidth > 0) {
+                    // Draw image with border/glow
+                    this.ctx.shadowBlur = 30;
+                    this.ctx.shadowColor = '#FFD700';
+                    this.ctx.drawImage(
+                        prizeImg,
+                        prizeImageX,
+                        prizeImageY,
+                        prizeImageSize,
+                        prizeImageSize
+                    );
+                    this.ctx.shadowBlur = 0;
+                    
+                    // Draw border around prize image
+                    this.ctx.strokeStyle = '#FFD700';
+                    this.ctx.lineWidth = 6;
+                    this.ctx.strokeRect(prizeImageX, prizeImageY, prizeImageSize, prizeImageSize);
+                } else {
+                    // Fallback: show number if image not loaded
+                    this.ctx.fillStyle = '#FFD700';
+                    this.ctx.font = 'bold 48px monospace';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText(`#${this.wheelSelectedSquare}`, CONFIG.CANVAS_WIDTH / 2, prizeImageY + prizeImageSize / 2);
+                }
+                
+                this.ctx.restore();
             }
             
-            // Win message
-            this.ctx.fillStyle = '#FFFFFF';
-            this.ctx.font = 'bold 24px monospace';
-            this.ctx.textAlign = 'center';
-            this.ctx.fillText(`You won: ${this.wheelSelectedSquare}!`, CONFIG.CANVAS_WIDTH / 2, prizeImageY + prizeImageSize + 30);
-            
-            // Link button
+            // Win message and buttons (only show after prize image appears)
+            if (this.wheelShowPrizeImage && this.wheelPrizeImageAlpha > 0.5) {
+                const prizeImageSize = Math.min(CONFIG.CANVAS_WIDTH - 40, CONFIG.CANVAS_HEIGHT - 200);
+                
+                // Win message
+                this.ctx.fillStyle = '#FFFFFF';
+                this.ctx.font = 'bold 24px monospace';
+                this.ctx.textAlign = 'center';
+                const messageY = CONFIG.CANVAS_HEIGHT / 2 + prizeImageSize / 2 + 40;
+                this.ctx.fillText(`You won: ${this.wheelSelectedSquare}!`, CONFIG.CANVAS_WIDTH / 2, messageY);
+                
+                // Link button
+                const buttonWidth = 250;
+                const buttonHeight = 50;
+                const buttonX = CONFIG.CANVAS_WIDTH / 2 - buttonWidth / 2;
+                const buttonY = messageY + 50;
+                
+                this.ctx.fillStyle = '#27AE60';
+                this.ctx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
+                this.ctx.strokeStyle = '#FFFFFF';
+                this.ctx.lineWidth = 2;
+                this.ctx.strokeRect(buttonX, buttonY, buttonWidth, buttonHeight);
+                
+                this.ctx.fillStyle = '#FFFFFF';
+                this.ctx.font = 'bold 18px monospace';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText('Open Link', CONFIG.CANVAS_WIDTH / 2, buttonY + 32);
+                
+                // Store button bounds for click detection
+                this.wheelLinkButtonBounds = { x: buttonX, y: buttonY, width: buttonWidth, height: buttonHeight, link: selectedSquare.link };
+                
+                // Spin Again button (if has enough points)
+                const canSpinAgain = this.points >= POINTS_MANAGER.WHEEL_COST;
+                if (canSpinAgain) {
+                    const spinAgainButtonY = buttonY + 70;
+                    this.ctx.fillStyle = '#27AE60';
+                    this.ctx.fillRect(buttonX, spinAgainButtonY, buttonWidth, buttonHeight);
+                    this.ctx.strokeStyle = '#FFFFFF';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.strokeRect(buttonX, spinAgainButtonY, buttonWidth, buttonHeight);
+                    
+                    this.ctx.fillStyle = '#FFFFFF';
+                    this.ctx.font = 'bold 18px monospace';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText(`Spin Again (${POINTS_MANAGER.WHEEL_COST} points)`, CONFIG.CANVAS_WIDTH / 2, spinAgainButtonY + 32);
+                    this.wheelSpinAgainButtonBounds = { x: buttonX, y: spinAgainButtonY, width: buttonWidth, height: buttonHeight };
+                } else {
+                    this.wheelSpinAgainButtonBounds = null;
+                }
+                
+                // Play Again button (with text)
+                const backButtonY = buttonY + (canSpinAgain ? 140 : 70);
+                this.ctx.fillStyle = '#E74C3C';
+                this.ctx.fillRect(buttonX, backButtonY, buttonWidth, buttonHeight);
+                this.ctx.strokeStyle = '#FFFFFF';
+                this.ctx.lineWidth = 2;
+                this.ctx.strokeRect(buttonX, backButtonY, buttonWidth, buttonHeight);
+                
+                this.ctx.fillStyle = '#FFFFFF';
+                this.ctx.font = 'bold 18px monospace';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText('Play Again', CONFIG.CANVAS_WIDTH / 2, backButtonY + 32);
+                this.wheelBackButtonBounds = { x: buttonX, y: backButtonY, width: buttonWidth, height: buttonHeight };
+            } else {
+                // Hide buttons until prize image appears
+                this.wheelLinkButtonBounds = null;
+                this.wheelBackButtonBounds = null;
+                this.wheelSpinAgainButtonBounds = null;
+            }
+        } else {
+            // Spin button (centered)
             const buttonWidth = 250;
             const buttonHeight = 50;
-            const buttonX = CONFIG.CANVAS_WIDTH / 2 - buttonWidth / 2;
-            const buttonY = prizeImageY + prizeImageSize + 80;
-            
-            this.ctx.fillStyle = '#27AE60';
-            this.ctx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
-            this.ctx.strokeStyle = '#FFFFFF';
-            this.ctx.lineWidth = 2;
-            this.ctx.strokeRect(buttonX, buttonY, buttonWidth, buttonHeight);
-            
-            this.ctx.fillStyle = '#FFFFFF';
-            this.ctx.font = 'bold 18px monospace';
-            this.ctx.textAlign = 'center';
-            this.ctx.fillText('Open Link', CONFIG.CANVAS_WIDTH / 2, buttonY + 32);
-            
-            // Store button bounds for click detection
-            this.wheelLinkButtonBounds = { x: buttonX, y: buttonY, width: buttonWidth, height: buttonHeight, link: selectedSquare.link };
-            
-            // Play Again button (with text)
-            const backButtonY = buttonY + 70;
-            this.ctx.fillStyle = '#E74C3C';
-            this.ctx.fillRect(buttonX, backButtonY, buttonWidth, buttonHeight);
-            this.ctx.strokeStyle = '#FFFFFF';
-            this.ctx.lineWidth = 2;
-            this.ctx.strokeRect(buttonX, backButtonY, buttonWidth, buttonHeight);
-            
-            this.ctx.fillStyle = '#FFFFFF';
-            this.ctx.font = 'bold 18px monospace';
-            this.ctx.textAlign = 'center';
-            this.ctx.fillText('Play Again', CONFIG.CANVAS_WIDTH / 2, backButtonY + 32);
-            this.wheelBackButtonBounds = { x: buttonX, y: backButtonY, width: buttonWidth, height: buttonHeight };
-        } else {
-            // Spin button
-            const buttonWidth = 200;
-            const buttonHeight = 50;
-            const buttonX = CONFIG.CANVAS_WIDTH / 2 - buttonWidth - 10; // Left side
+            const buttonX = CONFIG.CANVAS_WIDTH / 2 - buttonWidth / 2; // Centered
             const buttonY = CONFIG.CANVAS_HEIGHT / 2 + 100;
             
             const canSpin = this.points >= POINTS_MANAGER.WHEEL_COST && !this.wheelSpinning;
@@ -2258,18 +2343,18 @@ class Game {
             this.ctx.font = 'bold 18px monospace';
             this.ctx.textAlign = 'center';
             if (this.wheelSpinning) {
-                this.ctx.fillText('Spinning...', buttonX + buttonWidth / 2, buttonY + 32);
+                this.ctx.fillText('Spinning...', CONFIG.CANVAS_WIDTH / 2, buttonY + 32);
             } else if (canSpin) {
-                this.ctx.fillText(`Spin (${POINTS_MANAGER.WHEEL_COST} points)`, buttonX + buttonWidth / 2, buttonY + 32);
+                this.ctx.fillText(`Spin (${POINTS_MANAGER.WHEEL_COST} points)`, CONFIG.CANVAS_WIDTH / 2, buttonY + 32);
             } else {
-                this.ctx.fillText(`Need ${POINTS_MANAGER.WHEEL_COST} points`, buttonX + buttonWidth / 2, buttonY + 32);
+                this.ctx.fillText(`Need ${POINTS_MANAGER.WHEEL_COST} points`, CONFIG.CANVAS_WIDTH / 2, buttonY + 32);
             }
             
             this.wheelSpinButtonBounds = { x: buttonX, y: buttonY, width: buttonWidth, height: buttonHeight };
             
-            // Play Again button (right side, next to Spin button)
-            const playAgainButtonX = CONFIG.CANVAS_WIDTH / 2 + 10; // Right side
-            const playAgainButtonY = buttonY;
+            // Play Again button (centered, below Spin button)
+            const playAgainButtonX = CONFIG.CANVAS_WIDTH / 2 - buttonWidth / 2; // Centered
+            const playAgainButtonY = buttonY + buttonHeight + 20; // Below Spin button
             this.ctx.fillStyle = '#3498DB';
             this.ctx.fillRect(playAgainButtonX, playAgainButtonY, buttonWidth, buttonHeight);
             this.ctx.strokeStyle = '#FFFFFF';
@@ -2279,7 +2364,7 @@ class Game {
             this.ctx.fillStyle = '#FFFFFF';
             this.ctx.font = 'bold 18px monospace';
             this.ctx.textAlign = 'center';
-            this.ctx.fillText('Play Again', playAgainButtonX + buttonWidth / 2, playAgainButtonY + 32);
+            this.ctx.fillText('Play Again', CONFIG.CANVAS_WIDTH / 2, playAgainButtonY + 32);
             
             this.wheelPlayAgainButtonBounds = { x: playAgainButtonX, y: playAgainButtonY, width: buttonWidth, height: buttonHeight };
         }
