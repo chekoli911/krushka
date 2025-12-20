@@ -2094,22 +2094,13 @@ class Game {
         this.ctx.fillStyle = '#888888';
         this.ctx.fillText(textLine1, textStartX, textY);
         
-        // Draw link text (underlined and in different color to indicate it's clickable)
+        // Draw link text (same style as other text, but still clickable)
         const linkX = textStartX + textLine1Width;
-        this.ctx.fillStyle = '#4A90E2'; // Blue color for link
+        this.ctx.fillStyle = '#888888'; // Same color as other text
         this.ctx.fillText(linkText, linkX, textY);
         
-        // Draw underline for link
-        const linkTextHeight = 12; // Approximate text height
-        this.ctx.strokeStyle = '#4A90E2';
-        this.ctx.lineWidth = 1;
-        this.ctx.beginPath();
-        this.ctx.moveTo(linkX, textY + 3);
-        this.ctx.lineTo(linkX + linkTextWidth, textY + 3);
-        this.ctx.stroke();
-        
         // Draw text line 2
-        this.ctx.fillStyle = '#888888';
+        const linkTextHeight = 12; // Approximate text height
         const textLine2X = linkX + linkTextWidth;
         this.ctx.fillText(textLine2, textLine2X, textY);
         
@@ -2348,8 +2339,8 @@ class Game {
                     continue;
                 }
                 
-                // Highlight selected square
-                const isSelected = this.wheelShowResult && square.number === this.wheelSelectedSquare;
+                // Highlight selected square (use index to match the exact square from shuffled array)
+                const isSelected = this.wheelShowResult && i === this.wheelSelectedSquareIndex;
                 // Check if square center is under the arrow (centerX)
                 const squareCenterX = squareX + WHEEL_CONFIG.SQUARE_WIDTH / 2;
                 const isInCenter = Math.abs(squareCenterX - centerX) < WHEEL_CONFIG.SQUARE_WIDTH / 4; // Within quarter of square width
@@ -2421,12 +2412,13 @@ class Game {
         this.drawConfetti();
         
         // Show selected square highlight when wheel stops (before prize image appears)
-        if (this.wheelShowResult && this.wheelSelectedSquare && !this.wheelShowPrizeImage) {
+        if (this.wheelShowResult && this.wheelSelectedSquareIndex !== null && !this.wheelShowPrizeImage) {
             // Show message that wheel stopped
+            const selectedSquare = this.wheelSquares[this.wheelSelectedSquareIndex];
             this.ctx.fillStyle = '#FFFFFF';
             this.ctx.font = 'bold 28px monospace';
             this.ctx.textAlign = 'center';
-            this.ctx.fillText(`You won square #${this.wheelSelectedSquare}!`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2);
+            this.ctx.fillText(`You won square #${selectedSquare.number}!`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2);
         }
         
         // Spin button or result
@@ -2436,7 +2428,8 @@ class Game {
             
             // Draw prize image (only if delay has passed and fade-in is active)
             if (this.wheelShowPrizeImage && this.wheelPrizeImageAlpha > 0) {
-                const prizeImg = this.wheelImages[this.wheelSelectedSquare];
+                // Use the image from the selected square (from shuffled array)
+                const prizeImg = this.wheelImages[selectedSquare.number];
                 const prizeImageSize = 250; // Smaller size (was full screen)
                 const prizeImageX = CONFIG.CANVAS_WIDTH / 2 - prizeImageSize / 2;
                 const prizeImageY = CONFIG.CANVAS_HEIGHT / 2 - prizeImageSize / 2 - 50; // Higher up
@@ -2467,7 +2460,7 @@ class Game {
                     this.ctx.fillStyle = '#FFD700';
                     this.ctx.font = 'bold 48px monospace';
                     this.ctx.textAlign = 'center';
-                    this.ctx.fillText(`#${this.wheelSelectedSquare}`, CONFIG.CANVAS_WIDTH / 2, prizeImageY + prizeImageSize / 2);
+                    this.ctx.fillText(`#${selectedSquare.number}`, CONFIG.CANVAS_WIDTH / 2, prizeImageY + prizeImageSize / 2);
                 }
                 
                 this.ctx.restore();
@@ -2482,7 +2475,7 @@ class Game {
                 this.ctx.font = 'bold 24px monospace';
                 this.ctx.textAlign = 'center';
                 const messageY = CONFIG.CANVAS_HEIGHT / 2 - prizeImageSize / 2 + prizeImageSize + 20;
-                this.ctx.fillText(`You won: ${this.wheelSelectedSquare}!`, CONFIG.CANVAS_WIDTH / 2, messageY);
+                this.ctx.fillText(`You won: ${selectedSquare.number}!`, CONFIG.CANVAS_WIDTH / 2, messageY);
                 
                 // Buttons (3 buttons under the image)
                 const buttonWidth = 250;
