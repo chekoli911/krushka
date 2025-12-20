@@ -214,9 +214,9 @@ const POINTS_MANAGER = {
 // ==================== WHEEL OF FORTUNE CONFIG ====================
 const WHEEL_CONFIG = {
     SQUARES_COUNT: 12,
-    SQUARE_WIDTH: 120, // Increased from 80
-    SQUARE_HEIGHT: 120, // Increased from 80
-    SPIN_DURATION: 3000, // 3 seconds
+    SQUARE_WIDTH: 150, // Increased from 120
+    SQUARE_HEIGHT: 150, // Increased from 120
+    SPIN_DURATION: 4000, // 4 seconds for smoother animation
     BASE_URL: 'https://arenapsgm.ru/',
     
     // Images for each square (1-12)
@@ -744,6 +744,22 @@ class Game {
                 }
             }
             
+            // Check Play Again button
+            if (this.wheelPlayAgainButtonBounds && !this.wheelSpinning) {
+                const btn = this.wheelPlayAgainButtonBounds;
+                if (canvasX >= btn.x && canvasX <= btn.x + btn.width &&
+                    canvasY >= btn.y && canvasY <= btn.y + btn.height) {
+                    this.state = GAME_STATE.MENU;
+                    this.wheelShowResult = false;
+                    this.wheelSelectedSquare = null;
+                    this.wheelConfetti = [];
+                    this.wheelSpinning = false;
+                    this.wheelSpinOffset = 0;
+                    this.points = POINTS_MANAGER.getPoints();
+                    return true;
+                }
+            }
+            
             return false;
         };
 
@@ -987,8 +1003,8 @@ class Game {
             const centerX = CONFIG.CANVAS_WIDTH / 2;
             const targetOffset = selectedSquareX - centerX + (WHEEL_CONFIG.SQUARE_WIDTH / 2);
             
-            // Add extra rotations for visual effect (3-5 full rotations)
-            const extraRotations = 3 + Math.random() * 2;
+            // Add extra rotations for visual effect (4-6 full rotations for smoother feel)
+            const extraRotations = 4 + Math.random() * 2;
             const finalOffset = targetOffset + (extraRotations * totalWidth);
             
             if (progress >= 1) {
@@ -1001,10 +1017,19 @@ class Game {
                 // Create confetti
                 this.createConfetti();
             } else {
-                // Easing function for smooth deceleration (ease-out cubic)
-                const easeOut = 1 - Math.pow(1 - progress, 3);
+                // Modern easing: ease-out-expo for smooth deceleration
+                // Starts fast, slows down dramatically at the end
+                let easeOut;
+                if (progress < 0.7) {
+                    // Fast spinning phase
+                    easeOut = 1 - Math.pow(1 - (progress / 0.7), 2);
+                } else {
+                    // Slow deceleration phase
+                    const slowProgress = (progress - 0.7) / 0.3;
+                    easeOut = 0.7 + (0.3 * (1 - Math.pow(1 - slowProgress, 4)));
+                }
                 
-                // Interpolate to final position
+                // Interpolate to final position with smooth deceleration
                 this.wheelSpinOffset = finalOffset * (1 - easeOut);
             }
         }
@@ -1711,15 +1736,15 @@ class Game {
         this.ctx.font = this.isMobile ? 'bold 15px monospace' : 'bold 18px monospace'; // 15px for headers
         this.ctx.fillText(`Level: ${this.currentLevel + 1}/${LEVELS.length}`, edgeOffset, uiY);
         
-        this.ctx.font = this.isMobile ? '13px monospace' : '16px monospace'; // 13px for text
-        this.ctx.fillText(levelConfig.name, edgeOffset, uiY2);
-        
-        // Points (below level name, left side)
+        // Points (below LEVEL, left side)
         this.ctx.font = this.isMobile ? 'bold 13px monospace' : 'bold 16px monospace';
         const pointsText = `Points: ${this.points}`;
         this.ctx.fillStyle = '#FFD700'; // Gold color for points
-        this.ctx.fillText(pointsText, edgeOffset, pointsY);
+        this.ctx.fillText(pointsText, edgeOffset, uiY2);
         this.ctx.fillStyle = '#FFFFFF'; // Reset to white
+        
+        this.ctx.font = this.isMobile ? '13px monospace' : '16px monospace'; // 13px for text
+        this.ctx.fillText(levelConfig.name, edgeOffset, uiY2 + (this.isMobile ? 20 : 25));
 
         // Score (right side with 40px offset)
         this.ctx.font = this.isMobile ? 'bold 15px monospace' : 'bold 18px monospace'; // 15px for headers
@@ -2035,16 +2060,16 @@ class Game {
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
         this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
         
-        // Title (moved lower)
+        // Title (moved lower by 70px)
         this.ctx.fillStyle = '#FFD700';
         this.ctx.font = 'bold 32px monospace';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText('Wheel of Fortune', CONFIG.CANVAS_WIDTH / 2, 80);
+        this.ctx.fillText('Wheel of Fortune', CONFIG.CANVAS_WIDTH / 2, 150);
         
-        // Points display
+        // Points display (moved lower by 70px)
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = 'bold 20px monospace';
-        this.ctx.fillText(`Your Points: ${this.points}`, CONFIG.CANVAS_WIDTH / 2, 120);
+        this.ctx.fillText(`Your Points: ${this.points}`, CONFIG.CANVAS_WIDTH / 2, 190);
         
         // Draw wheel (horizontal strip)
         const wheelY = CONFIG.CANVAS_HEIGHT / 2 - 80;
@@ -2074,6 +2099,24 @@ class Game {
                 const isSelected = this.wheelShowResult && square.number === this.wheelSelectedSquare;
                 const isInCenter = squareX <= centerX && squareX + WHEEL_CONFIG.SQUARE_WIDTH >= centerX;
                 
+                // Neon glow colors for each square
+                const neonColors = [
+                    '#FF00FF', '#00FFFF', '#FFFF00', '#FF00FF',
+                    '#00FF00', '#FF0080', '#8000FF', '#FF8000',
+                    '#00FF80', '#FF4080', '#8040FF', '#40FF80'
+                ];
+                const neonColor = neonColors[i];
+                
+                // Draw neon glow effect
+                if (isSelected) {
+                    // Enhanced glow for selected
+                    this.ctx.shadowBlur = 30;
+                    this.ctx.shadowColor = '#FFD700';
+                } else {
+                    this.ctx.shadowBlur = 15;
+                    this.ctx.shadowColor = neonColor;
+                }
+                
                 // Square background
                 if (isSelected) {
                     this.ctx.fillStyle = '#FFD700';
@@ -2083,6 +2126,9 @@ class Game {
                     this.ctx.fillStyle = i % 2 === 0 ? '#2C3E50' : '#34495E';
                 }
                 this.ctx.fillRect(squareX, wheelY, WHEEL_CONFIG.SQUARE_WIDTH, wheelHeight);
+                
+                // Reset shadow
+                this.ctx.shadowBlur = 0;
                 
                 // Draw image if loaded
                 const img = this.wheelImages[square.number];
@@ -2104,10 +2150,13 @@ class Game {
                     this.ctx.fillText(square.number.toString(), squareX + WHEEL_CONFIG.SQUARE_WIDTH / 2, wheelY + wheelHeight / 2);
                 }
                 
-                // Border
-                this.ctx.strokeStyle = '#FFFFFF';
-                this.ctx.lineWidth = 2;
+                // Neon border with glow
+                this.ctx.shadowBlur = 10;
+                this.ctx.shadowColor = neonColor;
+                this.ctx.strokeStyle = neonColor;
+                this.ctx.lineWidth = 3;
                 this.ctx.strokeRect(squareX, wheelY, WHEEL_CONFIG.SQUARE_WIDTH, wheelHeight);
+                this.ctx.shadowBlur = 0;
             }
         }
         
@@ -2118,19 +2167,51 @@ class Game {
         
         // Spin button or result
         if (this.wheelShowResult && this.wheelSelectedSquare) {
-            // Show result with link button
+            // Show result with prize image and link button
             const selectedSquare = this.wheelSquares.find(s => s.number === this.wheelSelectedSquare);
             
+            // Draw prize image
+            const prizeImg = this.wheelImages[this.wheelSelectedSquare];
+            const prizeImageSize = 200; // Size of prize image
+            const prizeImageX = CONFIG.CANVAS_WIDTH / 2 - prizeImageSize / 2;
+            const prizeImageY = CONFIG.CANVAS_HEIGHT / 2 - 50;
+            
+            if (prizeImg && prizeImg.complete && prizeImg.naturalWidth > 0) {
+                // Draw image with border/glow
+                this.ctx.shadowBlur = 20;
+                this.ctx.shadowColor = '#FFD700';
+                this.ctx.drawImage(
+                    prizeImg,
+                    prizeImageX,
+                    prizeImageY,
+                    prizeImageSize,
+                    prizeImageSize
+                );
+                this.ctx.shadowBlur = 0;
+                
+                // Draw border around prize image
+                this.ctx.strokeStyle = '#FFD700';
+                this.ctx.lineWidth = 4;
+                this.ctx.strokeRect(prizeImageX, prizeImageY, prizeImageSize, prizeImageSize);
+            } else {
+                // Fallback: show number if image not loaded
+                this.ctx.fillStyle = '#FFD700';
+                this.ctx.font = 'bold 48px monospace';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(`#${this.wheelSelectedSquare}`, CONFIG.CANVAS_WIDTH / 2, prizeImageY + prizeImageSize / 2);
+            }
+            
+            // Win message
             this.ctx.fillStyle = '#FFFFFF';
             this.ctx.font = 'bold 24px monospace';
             this.ctx.textAlign = 'center';
-            this.ctx.fillText(`You won: ${this.wheelSelectedSquare}!`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 + 50);
+            this.ctx.fillText(`You won: ${this.wheelSelectedSquare}!`, CONFIG.CANVAS_WIDTH / 2, prizeImageY + prizeImageSize + 30);
             
             // Link button
             const buttonWidth = 250;
             const buttonHeight = 50;
             const buttonX = CONFIG.CANVAS_WIDTH / 2 - buttonWidth / 2;
-            const buttonY = CONFIG.CANVAS_HEIGHT / 2 + 100;
+            const buttonY = prizeImageY + prizeImageSize + 80;
             
             this.ctx.fillStyle = '#27AE60';
             this.ctx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
@@ -2140,23 +2221,30 @@ class Game {
             
             this.ctx.fillStyle = '#FFFFFF';
             this.ctx.font = 'bold 18px monospace';
+            this.ctx.textAlign = 'center';
             this.ctx.fillText('Open Link', CONFIG.CANVAS_WIDTH / 2, buttonY + 32);
             
             // Store button bounds for click detection
             this.wheelLinkButtonBounds = { x: buttonX, y: buttonY, width: buttonWidth, height: buttonHeight, link: selectedSquare.link };
             
-            // Back button
+            // Play Again button (with text)
             const backButtonY = buttonY + 70;
             this.ctx.fillStyle = '#E74C3C';
             this.ctx.fillRect(buttonX, backButtonY, buttonWidth, buttonHeight);
+            this.ctx.strokeStyle = '#FFFFFF';
+            this.ctx.lineWidth = 2;
             this.ctx.strokeRect(buttonX, backButtonY, buttonWidth, buttonHeight);
-            this.ctx.fillText('Back to Menu', CONFIG.CANVAS_WIDTH / 2, backButtonY + 32);
+            
+            this.ctx.fillStyle = '#FFFFFF';
+            this.ctx.font = 'bold 18px monospace';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('Play Again', CONFIG.CANVAS_WIDTH / 2, backButtonY + 32);
             this.wheelBackButtonBounds = { x: buttonX, y: backButtonY, width: buttonWidth, height: buttonHeight };
         } else {
             // Spin button
             const buttonWidth = 200;
             const buttonHeight = 50;
-            const buttonX = CONFIG.CANVAS_WIDTH / 2 - buttonWidth / 2;
+            const buttonX = CONFIG.CANVAS_WIDTH / 2 - buttonWidth - 10; // Left side
             const buttonY = CONFIG.CANVAS_HEIGHT / 2 + 100;
             
             const canSpin = this.points >= POINTS_MANAGER.WHEEL_COST && !this.wheelSpinning;
@@ -2170,14 +2258,30 @@ class Game {
             this.ctx.font = 'bold 18px monospace';
             this.ctx.textAlign = 'center';
             if (this.wheelSpinning) {
-                this.ctx.fillText('Spinning...', CONFIG.CANVAS_WIDTH / 2, buttonY + 32);
+                this.ctx.fillText('Spinning...', buttonX + buttonWidth / 2, buttonY + 32);
             } else if (canSpin) {
-                this.ctx.fillText(`Spin (${POINTS_MANAGER.WHEEL_COST} points)`, CONFIG.CANVAS_WIDTH / 2, buttonY + 32);
+                this.ctx.fillText(`Spin (${POINTS_MANAGER.WHEEL_COST} points)`, buttonX + buttonWidth / 2, buttonY + 32);
             } else {
-                this.ctx.fillText(`Need ${POINTS_MANAGER.WHEEL_COST} points`, CONFIG.CANVAS_WIDTH / 2, buttonY + 32);
+                this.ctx.fillText(`Need ${POINTS_MANAGER.WHEEL_COST} points`, buttonX + buttonWidth / 2, buttonY + 32);
             }
             
             this.wheelSpinButtonBounds = { x: buttonX, y: buttonY, width: buttonWidth, height: buttonHeight };
+            
+            // Play Again button (right side, next to Spin button)
+            const playAgainButtonX = CONFIG.CANVAS_WIDTH / 2 + 10; // Right side
+            const playAgainButtonY = buttonY;
+            this.ctx.fillStyle = '#3498DB';
+            this.ctx.fillRect(playAgainButtonX, playAgainButtonY, buttonWidth, buttonHeight);
+            this.ctx.strokeStyle = '#FFFFFF';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(playAgainButtonX, playAgainButtonY, buttonWidth, buttonHeight);
+            
+            this.ctx.fillStyle = '#FFFFFF';
+            this.ctx.font = 'bold 18px monospace';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('Play Again', playAgainButtonX + buttonWidth / 2, playAgainButtonY + 32);
+            
+            this.wheelPlayAgainButtonBounds = { x: playAgainButtonX, y: playAgainButtonY, width: buttonWidth, height: buttonHeight };
         }
         
         this.ctx.textAlign = 'left';
