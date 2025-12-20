@@ -237,6 +237,9 @@ const WHEEL_CONFIG = {
     SPIN_DURATION: 10000, // 10 seconds for slower, smoother animation (doubled)
     PRIZE_DELAY: 3000, // 3 seconds delay before showing prize image (pause after spin stops)
     PRIZE_FADE_DURATION: 1000, // 1 second for prize image fade-in
+    PRIZE_SCALE_DURATION: 1500, // 1.5 seconds for smooth scale animation from 200 to 290
+    PRIZE_START_SIZE: 200, // Starting size of prize card
+    PRIZE_END_SIZE: 290, // Final size of prize card
     BASE_URL: 'https://arenapsgm.ru/',
     
     // Images for each square (1-12)
