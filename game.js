@@ -536,6 +536,7 @@ class Game {
         this.wheelOriginalOrder = []; // Store original order of images
         this.allCompleteSpinButtonBounds = null; // Button bounds for ALL_COMPLETE screen
         this.allCompletePlayAgainButtonBounds = null; // Button bounds for ALL_COMPLETE screen
+        this.arenapsgmLinkBounds = null; // Link bounds for arenapsgm.ru link in menu
         this.initWheelOfFortune();
         
         this.setupCanvas();
@@ -946,6 +947,27 @@ class Game {
                 }
             }
             
+            // Handle arenapsgm.ru link touch on menu
+            if (e.touches && e.touches.length > 0 && this.state === GAME_STATE.MENU && this.arenapsgmLinkBounds) {
+                const touch = e.touches[0];
+                const rect = this.canvas.getBoundingClientRect();
+                const x = touch.clientX - rect.left;
+                const y = touch.clientY - rect.top;
+                const scaleX = this.canvas.width / rect.width;
+                const scaleY = this.canvas.height / rect.height;
+                const canvasX = x * scaleX;
+                const canvasY = y * scaleY;
+                
+                const link = this.arenapsgmLinkBounds;
+                if (canvasX >= link.x && canvasX <= link.x + link.width &&
+                    canvasY >= link.y && canvasY <= link.y + link.height) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.open(link.link, '_blank');
+                    return;
+                }
+            }
+            
             // Handle pause/unpause on touch during paused state (anywhere on screen)
             if (this.state === GAME_STATE.PAUSED) {
                 e.preventDefault();
@@ -1002,6 +1024,18 @@ class Game {
             const scaleY = this.canvas.height / rect.height;
             const canvasX = x * scaleX;
             const canvasY = y * scaleY;
+            
+            // Handle arenapsgm.ru link click on menu
+            if (this.state === GAME_STATE.MENU && this.arenapsgmLinkBounds) {
+                const link = this.arenapsgmLinkBounds;
+                if (canvasX >= link.x && canvasX <= link.x + link.width &&
+                    canvasY >= link.y && canvasY <= link.y + link.height) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.open(link.link, '_blank');
+                    return;
+                }
+            }
             
             // Handle pause button click - entire top right corner is clickable
             if (this.state === GAME_STATE.PLAYING && this.pauseButtonBounds) {
@@ -1764,7 +1798,7 @@ class Game {
             }
 
             // Check level complete - use score instead of distance
-            const targetScore = this.demoMode ? 75 : 50; // 75 for demo mode, 50 for normal mode
+            const targetScore = this.demoMode ? 102 : 50; // 102 for demo mode, 50 for normal mode
             if (this.score >= targetScore) {
                 // Add current level score to total score
                 this.totalScore += this.score;
@@ -2036,14 +2070,57 @@ class Game {
         this.ctx.font = 'bold 18px monospace';
         this.ctx.fillText('START GAME', canvasWidth / 2, startY + 30);
         
-        // Show auto-demo hint
-        const timeSinceInteraction = (Date.now() - this.lastInteractionTime) / 1000;
-        const timeLeft = Math.max(0, 30 - timeSinceInteraction);
-        if (timeLeft > 0 && timeLeft < 30) {
+        // Show "From the creators of arenapsgm.ru 2026" text
             this.ctx.font = '12px monospace';
             this.ctx.fillStyle = '#888888';
-            this.ctx.fillText(`Demo starts in ${Math.ceil(timeLeft)}s`, canvasWidth / 2, startY + btnHeight + 30);
-        }
+        this.ctx.textAlign = 'left';
+        
+        const textY = startY + btnHeight + 30;
+        const textLine1 = 'From the creators of ';
+        const linkText = 'arenapsgm.ru';
+        const textLine2 = ' 2026';
+        const fullText = textLine1 + linkText + textLine2;
+        
+        // Measure text widths
+        const textLine1Width = this.ctx.measureText(textLine1).width;
+        const linkTextWidth = this.ctx.measureText(linkText).width;
+        const textLine2Width = this.ctx.measureText(textLine2).width;
+        const fullTextWidth = this.ctx.measureText(fullText).width;
+        
+        // Calculate starting X position to center the full text
+        const textStartX = canvasWidth / 2 - fullTextWidth / 2;
+        
+        // Draw text line 1
+        this.ctx.fillStyle = '#888888';
+        this.ctx.fillText(textLine1, textStartX, textY);
+        
+        // Draw link text (underlined and in different color to indicate it's clickable)
+        const linkX = textStartX + textLine1Width;
+        this.ctx.fillStyle = '#4A90E2'; // Blue color for link
+        this.ctx.fillText(linkText, linkX, textY);
+        
+        // Draw underline for link
+        const linkTextHeight = 12; // Approximate text height
+        this.ctx.strokeStyle = '#4A90E2';
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        this.ctx.moveTo(linkX, textY + 3);
+        this.ctx.lineTo(linkX + linkTextWidth, textY + 3);
+        this.ctx.stroke();
+        
+        // Draw text line 2
+        this.ctx.fillStyle = '#888888';
+        const textLine2X = linkX + linkTextWidth;
+        this.ctx.fillText(textLine2, textLine2X, textY);
+        
+        // Store link bounds for click detection
+        this.arenapsgmLinkBounds = {
+            x: linkX,
+            y: textY - linkTextHeight,
+            width: linkTextWidth,
+            height: linkTextHeight + 5,
+            link: 'https://t.me/APSGMbot/?startapp&addToHomeScreen'
+        };
 
         this.ctx.textAlign = 'left';
         this.ctx.textBaseline = 'alphabetic';
