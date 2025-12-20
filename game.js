@@ -1,6 +1,23 @@
 // Telegram Mini App Game: Krushka - Knight Rider
 // A pixel-art endless runner with 5 themed levels
 
+// Polyfill for roundRect if not supported
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+    CanvasRenderingContext2D.prototype.roundRect = function(x, y, width, height, radius) {
+        this.beginPath();
+        this.moveTo(x + radius, y);
+        this.lineTo(x + width - radius, y);
+        this.quadraticCurveTo(x + width, y, x + width, y + radius);
+        this.lineTo(x + width, y + height - radius);
+        this.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+        this.lineTo(x + radius, y + height);
+        this.quadraticCurveTo(x, y + height, x, y + height - radius);
+        this.lineTo(x, y + radius);
+        this.quadraticCurveTo(x, y, x + radius, y);
+        this.closePath();
+    };
+}
+
 // ==================== DEVICE DETECTION ====================
 function isMobileDevice() {
     // Check if it's a mobile device by user agent
@@ -214,8 +231,9 @@ const POINTS_MANAGER = {
 // ==================== WHEEL OF FORTUNE CONFIG ====================
 const WHEEL_CONFIG = {
     SQUARES_COUNT: 12,
-    SQUARE_WIDTH: 150, // Increased from 120
-    SQUARE_HEIGHT: 150, // Increased from 120
+    SQUARE_WIDTH: 200, // Increased by 50px (was 150)
+    SQUARE_HEIGHT: 200, // Increased by 50px (was 150)
+    SQUARE_SPACING: 20, // Space between cards
     SPIN_DURATION: 10000, // 10 seconds for slower, smoother animation (doubled)
     PRIZE_DELAY: 3000, // 3 seconds delay before showing prize image (pause after spin stops)
     PRIZE_FADE_DURATION: 1000, // 1 second for prize image fade-in
@@ -1141,32 +1159,40 @@ class Game {
             const elapsed = Date.now() - this.wheelSpinStartTime;
             const progress = Math.min(elapsed / WHEEL_CONFIG.SPIN_DURATION, 1);
             
-            const totalWidth = WHEEL_CONFIG.SQUARES_COUNT * WHEEL_CONFIG.SQUARE_WIDTH;
+            // Calculate total width with spacing
+            const totalWidth = (WHEEL_CONFIG.SQUARES_COUNT * WHEEL_CONFIG.SQUARE_WIDTH) + 
+                              ((WHEEL_CONFIG.SQUARES_COUNT - 1) * WHEEL_CONFIG.SQUARE_SPACING);
             const centerX = CONFIG.CANVAS_WIDTH / 2;
             
             if (progress >= 1) {
-                // Spin complete - stop randomly inside the selected square
+                // Spin complete - determine which square is in the center
                 this.wheelSpinning = false;
                 
+                // Find which square is currently in the center
+                const wheelStartX = CONFIG.CANVAS_WIDTH / 2 - totalWidth / 2;
+                let centerSquareIndex = -1;
+                let minDistance = Infinity;
+                
+                for (let i = 0; i < WHEEL_CONFIG.SQUARES_COUNT; i++) {
+                    const squareX = wheelStartX + (i * (WHEEL_CONFIG.SQUARE_WIDTH + WHEEL_CONFIG.SQUARE_SPACING)) - this.wheelSpinOffset;
+                    const squareCenterX = squareX + WHEEL_CONFIG.SQUARE_WIDTH / 2;
+                    const distance = Math.abs(squareCenterX - centerX);
+                    
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        centerSquareIndex = i;
+                    }
+                }
+                
                 // Get the selected square from shuffled array
-                const selectedSquare = this.wheelSquares[this.wheelTargetSquareIndex];
+                const selectedSquare = this.wheelSquares[centerSquareIndex];
                 this.wheelSelectedSquare = selectedSquare.number;
-                this.wheelSelectedSquareIndex = this.wheelTargetSquareIndex; // Save index for later use
+                this.wheelSelectedSquareIndex = centerSquareIndex; // Save index for later use
                 this.wheelShowResult = true;
                 
-                // Calculate offset to stop randomly inside the selected square (not at center)
-                const wheelStartX = CONFIG.CANVAS_WIDTH / 2 - totalWidth / 2;
-                const selectedSquareX = wheelStartX + (this.wheelTargetSquareIndex * WHEEL_CONFIG.SQUARE_WIDTH);
-                
-                // Random position inside the square (leave some margin from edges)
-                // Use 20% margin from each edge, so random position is in the middle 60% of the square
-                const margin = WHEEL_CONFIG.SQUARE_WIDTH * 0.2;
-                const randomOffsetInSquare = margin + Math.random() * (WHEEL_CONFIG.SQUARE_WIDTH - 2 * margin);
-                
-                // Position arrow at random point inside the square
-                // Arrow is at centerX, so we need: selectedSquareX + randomOffsetInSquare - wheelSpinOffset = centerX
-                // Therefore: wheelSpinOffset = selectedSquareX + randomOffsetInSquare - centerX
-                this.wheelSpinOffset = selectedSquareX + randomOffsetInSquare - centerX;
+                // Center the winning square perfectly
+                const selectedSquareX = wheelStartX + (centerSquareIndex * (WHEEL_CONFIG.SQUARE_WIDTH + WHEEL_CONFIG.SQUARE_SPACING));
+                this.wheelSpinOffset = selectedSquareX + (WHEEL_CONFIG.SQUARE_WIDTH / 2) - centerX;
                 
                 this.wheelShowPrizeImage = false;
                 this.wheelPrizeImageAlpha = 0;
@@ -1178,9 +1204,10 @@ class Game {
                 // Smooth deceleration with ease-out-quart
                 const easeOut = 1 - Math.pow(1 - progress, 4);
                 
-                // Calculate final position: total rotations + target square position
+                // Calculate final position: random stop position
+                // We'll determine the winner based on what ends up in the center
                 const wheelStartX = CONFIG.CANVAS_WIDTH / 2 - totalWidth / 2;
-                const selectedSquareX = wheelStartX + (this.wheelTargetSquareIndex * WHEEL_CONFIG.SQUARE_WIDTH);
+                const selectedSquareX = wheelStartX + (this.wheelTargetSquareIndex * (WHEEL_CONFIG.SQUARE_WIDTH + WHEEL_CONFIG.SQUARE_SPACING));
                 const targetOffset = selectedSquareX + (WHEEL_CONFIG.SQUARE_WIDTH / 2) - centerX;
                 
                 // Total distance = rotations + target offset
@@ -2316,19 +2343,36 @@ class Game {
         this.ctx.fillText(`Your Points: ${this.points}`, CONFIG.CANVAS_WIDTH / 2, 190);
         
         // Draw wheel (horizontal strip)
-        const wheelY = CONFIG.CANVAS_HEIGHT / 2 - 80;
+        const wheelY = CONFIG.CANVAS_HEIGHT / 2 - 100;
         const wheelHeight = WHEEL_CONFIG.SQUARE_HEIGHT;
-        const totalWidth = WHEEL_CONFIG.SQUARES_COUNT * WHEEL_CONFIG.SQUARE_WIDTH;
+        // Calculate total width with spacing
+        const totalWidth = (WHEEL_CONFIG.SQUARES_COUNT * WHEEL_CONFIG.SQUARE_WIDTH) + 
+                          ((WHEEL_CONFIG.SQUARES_COUNT - 1) * WHEEL_CONFIG.SQUARE_SPACING);
         const wheelStartX = CONFIG.CANVAS_WIDTH / 2 - totalWidth / 2;
         const centerX = CONFIG.CANVAS_WIDTH / 2;
         
-        // Modern gradient background for wheel area
-        const wheelBgGradient = this.ctx.createLinearGradient(0, wheelY - 20, 0, wheelY + wheelHeight + 20);
-        wheelBgGradient.addColorStop(0, 'rgba(20, 20, 40, 0.3)');
-        wheelBgGradient.addColorStop(0.5, 'rgba(30, 30, 50, 0.5)');
-        wheelBgGradient.addColorStop(1, 'rgba(20, 20, 40, 0.3)');
-        this.ctx.fillStyle = wheelBgGradient;
-        this.ctx.fillRect(0, wheelY - 20, CONFIG.CANVAS_WIDTH, wheelHeight + 40);
+        // Dark background for wheel area
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        this.ctx.fillRect(0, wheelY - 30, CONFIG.CANVAS_WIDTH, wheelHeight + 60);
+        
+        // Draw center indicator frame (like app icon selection)
+        const centerFrameSize = WHEEL_CONFIG.SQUARE_WIDTH + 10;
+        const centerFrameX = centerX - centerFrameSize / 2;
+        const centerFrameY = wheelY - 5;
+        this.ctx.strokeStyle = 'rgba(100, 200, 255, 0.8)';
+        this.ctx.lineWidth = 4;
+        this.ctx.setLineDash([5, 5]);
+        this.ctx.strokeRect(centerFrameX, centerFrameY, centerFrameSize, centerFrameSize);
+        this.ctx.setLineDash([]);
+        
+        // Draw center indicator triangle (like app selection)
+        this.ctx.fillStyle = 'rgba(100, 200, 255, 0.9)';
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX, centerFrameY - 8);
+        this.ctx.lineTo(centerX - 8, centerFrameY + 2);
+        this.ctx.lineTo(centerX + 8, centerFrameY + 2);
+        this.ctx.closePath();
+        this.ctx.fill();
         
         // Draw squares with wrap-around for infinite scroll
         // Draw multiple copies to ensure seamless scrolling
@@ -2336,87 +2380,77 @@ class Game {
         for (let copy = -1; copy <= copies; copy++) {
             for (let i = 0; i < WHEEL_CONFIG.SQUARES_COUNT; i++) {
                 const square = this.wheelSquares[i];
-                const squareX = wheelStartX + (i * WHEEL_CONFIG.SQUARE_WIDTH) + (copy * totalWidth) - this.wheelSpinOffset;
+                // Calculate position with spacing
+                const squareX = wheelStartX + (i * (WHEEL_CONFIG.SQUARE_WIDTH + WHEEL_CONFIG.SQUARE_SPACING)) + 
+                               (copy * totalWidth) - this.wheelSpinOffset;
                 
                 // Only draw if on screen
                 if (squareX + WHEEL_CONFIG.SQUARE_WIDTH < 0 || squareX > CONFIG.CANVAS_WIDTH) {
                     continue;
                 }
                 
-                // Check if this square is selected (the one that stopped)
+                // Check if this square is in the center (winning square)
+                const squareCenterX = squareX + WHEEL_CONFIG.SQUARE_WIDTH / 2;
+                const isInCenter = Math.abs(squareCenterX - centerX) < WHEEL_CONFIG.SQUARE_WIDTH / 2;
                 const isSelected = this.wheelShowResult && i === this.wheelSelectedSquareIndex;
-                
-                // Modern color palette - gradient backgrounds
-                const modernColors = [
-                    ['#667eea', '#764ba2'], ['#f093fb', '#f5576c'],
-                    ['#4facfe', '#00f2fe'], ['#43e97b', '#38f9d7'],
-                    ['#fa709a', '#fee140'], ['#30cfd0', '#330867'],
-                    ['#a8edea', '#fed6e3'], ['#ff9a9e', '#fecfef'],
-                    ['#ffecd2', '#fcb69f'], ['#ff8a80', '#ea4c89'],
-                    ['#a1c4fd', '#c2e9fb'], ['#ffd89b', '#19547b']
-                ];
-                const [color1, color2] = modernColors[i];
                 
                 // Save context
                 this.ctx.save();
                 
-                // Modern gradient background
-                const squareGradient = this.ctx.createLinearGradient(
-                    squareX, wheelY,
-                    squareX + WHEEL_CONFIG.SQUARE_WIDTH, wheelY + wheelHeight
-                );
-                squareGradient.addColorStop(0, color1);
-                squareGradient.addColorStop(1, color2);
-                this.ctx.fillStyle = squareGradient;
+                // App icon style - rounded corners with shadow
+                const cornerRadius = 15;
+                const shadowBlur = isInCenter ? 25 : 15;
+                const shadowColor = isInCenter ? 'rgba(100, 200, 255, 0.6)' : 'rgba(0, 0, 0, 0.5)';
                 
-                // Enhanced glow for selected square
-                if (isSelected && !this.wheelSpinning) {
-                    this.ctx.shadowBlur = 30;
-                    this.ctx.shadowColor = '#FFD700';
-                } else {
-                    this.ctx.shadowBlur = 20;
-                    this.ctx.shadowColor = color1;
-                }
+                // Draw shadow
+                this.ctx.shadowBlur = shadowBlur;
+                this.ctx.shadowColor = shadowColor;
+                this.ctx.shadowOffsetX = 0;
+                this.ctx.shadowOffsetY = 5;
                 
-                this.ctx.fillRect(squareX, wheelY, WHEEL_CONFIG.SQUARE_WIDTH, wheelHeight);
+                // Draw rounded rectangle background (white/light for app icon style)
+                this.ctx.fillStyle = isInCenter ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.9)';
+                this.ctx.beginPath();
+                this.ctx.roundRect(squareX, wheelY, WHEEL_CONFIG.SQUARE_WIDTH, wheelHeight, cornerRadius);
+                this.ctx.fill();
+                
+                // Reset shadow
                 this.ctx.shadowBlur = 0;
+                this.ctx.shadowOffsetY = 0;
                 
                 // Draw image if loaded
                 const img = this.wheelImages[square.number];
                 if (img && img.complete && img.naturalWidth > 0) {
-                    // Draw image with padding and opacity
-                    const padding = 6;
-                    this.ctx.globalAlpha = 0.9;
+                    // Draw image with rounded corners clipping
+                    this.ctx.save();
+                    this.ctx.beginPath();
+                    this.ctx.roundRect(squareX + 8, wheelY + 8, WHEEL_CONFIG.SQUARE_WIDTH - 16, wheelHeight - 16, cornerRadius - 4);
+                    this.ctx.clip();
+                    
                     this.ctx.drawImage(
                         img,
-                        squareX + padding,
-                        wheelY + padding,
-                        WHEEL_CONFIG.SQUARE_WIDTH - (padding * 2),
-                        wheelHeight - (padding * 2)
+                        squareX + 8,
+                        wheelY + 8,
+                        WHEEL_CONFIG.SQUARE_WIDTH - 16,
+                        wheelHeight - 16
                     );
-                    this.ctx.globalAlpha = 1;
+                    this.ctx.restore();
                 } else {
                     // Fallback: show number if image not loaded
-                    this.ctx.fillStyle = '#FFFFFF';
-                    this.ctx.font = 'bold 24px monospace';
+                    this.ctx.fillStyle = '#333333';
+                    this.ctx.font = 'bold 32px monospace';
                     this.ctx.textAlign = 'center';
                     this.ctx.fillText(square.number.toString(), squareX + WHEEL_CONFIG.SQUARE_WIDTH / 2, wheelY + wheelHeight / 2);
                 }
                 
-                // Modern border with subtle glow
-                if (isSelected && !this.wheelSpinning) {
-                    this.ctx.strokeStyle = '#FFD700';
-                    this.ctx.lineWidth = 3;
-                    this.ctx.shadowBlur = 15;
-                    this.ctx.shadowColor = '#FFD700';
-                } else {
-                    this.ctx.strokeStyle = '#FFFFFF';
-                    this.ctx.lineWidth = 2;
-                    this.ctx.shadowBlur = 8;
-                    this.ctx.shadowColor = color1;
+                // Highlight border for center square
+                if (isInCenter) {
+                    this.ctx.strokeStyle = 'rgba(100, 200, 255, 0.9)';
+                    this.ctx.lineWidth = 4;
+                    this.ctx.beginPath();
+                    this.ctx.roundRect(squareX, wheelY, WHEEL_CONFIG.SQUARE_WIDTH, wheelHeight, cornerRadius);
+                    this.ctx.stroke();
                 }
-                this.ctx.strokeRect(squareX, wheelY, WHEEL_CONFIG.SQUARE_WIDTH, wheelHeight);
-                this.ctx.shadowBlur = 0;
                 
                 this.ctx.restore();
             }
