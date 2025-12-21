@@ -244,10 +244,10 @@ const WHEEL_CONFIG = {
     
     // Images for each square (1-12)
     IMAGES: [
-        'https://static.tildacdn.com/stor3537-3737-4635-a535-643336663233/19172606.jpg',
-        'https://static.tildacdn.com/stor3030-6230-4230-a566-333630376238/19090300.jpg',
-        'https://static.tildacdn.com/stor3430-6238-4430-b162-633431303163/31905856.jpg',
-        'https://static.tildacdn.com/stor6161-3266-4064-a139-363037313830/32528681.jpg',
+        'https://optim.tildacdn.com/stor6262-3765-4562-b138-343633356239/-/format/webp/77355f6e951a18f9c7e673fa53ce4a39.jpg',
+        'https://optim.tildacdn.com/stor3937-3331-4834-b364-353034643435/-/format/webp/a9f50aae93a6bd048dd6893834097a11.jpg',
+        'https://optim.tildacdn.com/stor6134-3036-4330-b739-653862643332/-/contain/888x888/center/center/-/format/webp/3de300aacd0792481ff3f978c1290c0d.jpg',
+        'https://optim.tildacdn.com/stor6562-6134-4436-b632-306662613163/-/format/webp/ace453e89f7ed7f44b644c6c995bf72d.jpg',
         'https://static.tildacdn.com/stor3737-6265-4465-b361-313430376663/92682172.png',
         'https://static.tildacdn.com/stor3236-3239-4638-b963-343266613133/29471824.jpg',
         'https://static.tildacdn.com/stor6461-3137-4562-b838-633463303430/33211320.jpg',
@@ -1855,7 +1855,7 @@ class Game {
             }
 
             // Check level complete - use score instead of distance
-            const targetScore = this.demoMode ? 102 : 200; // 102 for demo mode, 200 for normal mode
+            const targetScore = this.demoMode ? 102 : 30; // 102 for demo mode, 30 for normal mode
             if (this.score >= targetScore) {
                 // Add current level score to total score
                 this.totalScore += this.score;
