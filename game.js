@@ -2240,16 +2240,16 @@ class Game {
         this.ctx.fillStyle = '#F39C12';
         this.ctx.font = 'bold 28px monospace';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText('Congratulations!', CONFIG.CANVAS_WIDTH / 2, 80);
+        this.ctx.fillText('Congratulations!', CONFIG.CANVAS_WIDTH / 2, 125); // Moved down by 45px (was 80)
         
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = '18px monospace';
-        this.ctx.fillText(`You finished all ${LEVELS.length} levels!`, CONFIG.CANVAS_WIDTH / 2, 120);
+        this.ctx.fillText(`You finished all ${LEVELS.length} levels!`, CONFIG.CANVAS_WIDTH / 2, 165); // Moved down by 45px (was 120)
         this.ctx.font = '20px monospace';
-        this.ctx.fillText(`Final Score: ${this.totalScore}`, CONFIG.CANVAS_WIDTH / 2, 160);
+        this.ctx.fillText(`Final Score: ${this.totalScore}`, CONFIG.CANVAS_WIDTH / 2, 205); // Moved down by 45px (was 160)
         
         // Draw animated prize cards scrolling from right to left
-        const prizeCardSize = 120;
+        const prizeCardSize = 160; // Increased from 120 to 160 (larger cards)
         const prizeCardSpacing = 20;
         const prizeCardY = CONFIG.CANVAS_HEIGHT / 2 - 50;
         const totalCardWidth = prizeCardSize + prizeCardSpacing;
@@ -2318,12 +2318,13 @@ class Game {
         this.ctx.restore();
         this.ctx.textAlign = 'center';
         
-        // Draw buttons
+        // Draw buttons (moved down to avoid overlapping with cards)
         const buttonWidth = 250;
         const buttonHeight = 50;
         const buttonX = CONFIG.CANVAS_WIDTH / 2 - buttonWidth / 2;
         const buttonSpacing = 60;
-        let currentButtonY = CONFIG.CANVAS_HEIGHT / 2;
+        // Position buttons below the cards (cards end at prizeCardY + prizeCardSize)
+        let currentButtonY = prizeCardY + prizeCardSize + 40; // 40px spacing below cards
         
         // Check if player has enough points for wheel
         this.points = POINTS_MANAGER.getPoints();
