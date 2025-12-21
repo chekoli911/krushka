@@ -560,6 +560,8 @@ class Game {
         this.allCompleteSpinButtonBounds = null; // Button bounds for ALL_COMPLETE screen
         this.allCompletePlayAgainButtonBounds = null; // Button bounds for ALL_COMPLETE screen
         this.arenapsgmLinkBounds = null; // Link bounds for arenapsgm.ru link in menu
+        this.allCompletePrizeScrollOffset = 0; // Scroll offset for prize cards animation on ALL_COMPLETE screen
+        this.allCompletePrizeScrollSpeed = 0.5; // Speed of prize cards scrolling (pixels per frame)
         this.initWheelOfFortune();
         
         this.setupCanvas();
@@ -762,13 +764,15 @@ class Game {
                 const btn = this.allCompleteSpinButtonBounds;
                 if (canvasX >= btn.x && canvasX <= btn.x + btn.width &&
                     canvasY >= btn.y && canvasY <= btn.y + btn.height) {
-                    // Reset wheel state and go to wheel
+                    // Reset wheel state and go to wheel, then start spinning
                     this.wheelSpinning = false;
                     this.wheelShowResult = false;
                     this.wheelSelectedSquare = null;
                     this.wheelConfetti = [];
                     this.wheelSpinOffset = 0;
                     this.state = GAME_STATE.WHEEL_OF_FORTUNE;
+                    // Start spinning immediately
+                    this.spinWheel();
                     return true;
                 }
             }
@@ -1435,6 +1439,7 @@ class Game {
             this.currentLevel++;
             if (this.currentLevel >= LEVELS.length) {
                 this.state = GAME_STATE.ALL_COMPLETE;
+                this.allCompletePrizeScrollOffset = 0; // Reset scroll animation
             } else {
                 this.distance = 0;
                 this.obstacles = [];
@@ -1804,6 +1809,20 @@ class Game {
         if (this.state === GAME_STATE.WHEEL_OF_FORTUNE) {
             this.updateWheelOfFortune();
             return;
+        }
+        
+        // Update prize cards animation on ALL_COMPLETE screen
+        if (this.state === GAME_STATE.ALL_COMPLETE) {
+            // Scroll prizes from right to left
+            this.allCompletePrizeScrollOffset += this.allCompletePrizeScrollSpeed;
+            // Reset when all cards have scrolled through
+            const cardWidth = 150;
+            const cardSpacing = 20;
+            const totalCardWidth = cardWidth + cardSpacing;
+            const totalScrollDistance = WHEEL_CONFIG.SQUARES_COUNT * totalCardWidth;
+            if (this.allCompletePrizeScrollOffset >= totalScrollDistance) {
+                this.allCompletePrizeScrollOffset = 0;
+            }
         }
         
         // Always update ground offset for smooth animation (even in menu)
@@ -2221,13 +2240,83 @@ class Game {
         this.ctx.fillStyle = '#F39C12';
         this.ctx.font = 'bold 28px monospace';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText('Congratulations!', CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 120);
+        this.ctx.fillText('Congratulations!', CONFIG.CANVAS_WIDTH / 2, 80);
         
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = '18px monospace';
-        this.ctx.fillText(`You finished all ${LEVELS.length} levels!`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 80);
+        this.ctx.fillText(`You finished all ${LEVELS.length} levels!`, CONFIG.CANVAS_WIDTH / 2, 120);
         this.ctx.font = '20px monospace';
-        this.ctx.fillText(`Final Score: ${this.totalScore}`, CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2 - 40);
+        this.ctx.fillText(`Final Score: ${this.totalScore}`, CONFIG.CANVAS_WIDTH / 2, 160);
+        
+        // Draw animated prize cards scrolling from right to left
+        const prizeCardSize = 120;
+        const prizeCardSpacing = 20;
+        const prizeCardY = CONFIG.CANVAS_HEIGHT / 2 - 50;
+        const totalCardWidth = prizeCardSize + prizeCardSpacing;
+        
+        // Enable high-quality image smoothing for prize cards
+        this.ctx.save();
+        this.ctx.imageSmoothingEnabled = true;
+        this.ctx.imageSmoothingQuality = 'high';
+        
+        // Draw multiple copies for seamless scrolling
+        const copies = 2;
+        for (let copy = 0; copy <= copies; copy++) {
+            for (let i = 0; i < WHEEL_CONFIG.SQUARES_COUNT; i++) {
+                const cardX = CONFIG.CANVAS_WIDTH - this.allCompletePrizeScrollOffset + 
+                             (i * totalCardWidth) + (copy * WHEEL_CONFIG.SQUARES_COUNT * totalCardWidth);
+                
+                // Only draw if on screen
+                if (cardX + prizeCardSize < 0 || cardX > CONFIG.CANVAS_WIDTH) {
+                    continue;
+                }
+                
+                const square = this.wheelOriginalOrder[i] || { number: i + 1 };
+                const img = this.wheelImages[square.number];
+                
+                // Draw card background
+                const cornerRadius = 10;
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                this.ctx.beginPath();
+                this.ctx.roundRect(cardX, prizeCardY, prizeCardSize, prizeCardSize, cornerRadius);
+                this.ctx.fill();
+                
+                // Draw image if loaded with high quality
+                if (img && img.complete && img.naturalWidth > 0) {
+                    this.ctx.save();
+                    this.ctx.imageSmoothingEnabled = true;
+                    this.ctx.imageSmoothingQuality = 'high';
+                    this.ctx.beginPath();
+                    this.ctx.roundRect(cardX + 5, prizeCardY + 5, prizeCardSize - 10, prizeCardSize - 10, cornerRadius - 2);
+                    this.ctx.clip();
+                    
+                    this.ctx.drawImage(
+                        img,
+                        cardX + 5,
+                        prizeCardY + 5,
+                        prizeCardSize - 10,
+                        prizeCardSize - 10
+                    );
+                    this.ctx.restore();
+                } else {
+                    // Fallback: show number
+                    this.ctx.fillStyle = '#333333';
+                    this.ctx.font = 'bold 24px monospace';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText(square.number.toString(), cardX + prizeCardSize / 2, prizeCardY + prizeCardSize / 2);
+                }
+                
+                // Draw border
+                this.ctx.strokeStyle = 'rgba(100, 200, 255, 0.6)';
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                this.ctx.roundRect(cardX, prizeCardY, prizeCardSize, prizeCardSize, cornerRadius);
+                this.ctx.stroke();
+            }
+        }
+        
+        this.ctx.restore();
+        this.ctx.textAlign = 'center';
         
         // Draw buttons
         const buttonWidth = 250;
@@ -2451,11 +2540,15 @@ class Game {
                 this.ctx.shadowBlur = 0;
                 this.ctx.shadowOffsetY = 0;
                 
-                // Draw image if loaded
+                // Draw image if loaded with high quality
                 const img = this.wheelImages[square.number];
                 if (img && img.complete && img.naturalWidth > 0) {
-                    // Draw image with rounded corners clipping
+                    // Enable high-quality image smoothing
                     this.ctx.save();
+                    this.ctx.imageSmoothingEnabled = true;
+                    this.ctx.imageSmoothingQuality = 'high';
+                    
+                    // Draw image with rounded corners clipping
                     this.ctx.beginPath();
                     this.ctx.roundRect(squareX + 8, wheelY + 8, WHEEL_CONFIG.SQUARE_WIDTH - 16, wheelHeight - 16, cornerRadius - 4);
                     this.ctx.clip();
@@ -2542,6 +2635,11 @@ class Game {
                 this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
                 
                 if (prizeImg && prizeImg.complete && prizeImg.naturalWidth > 0) {
+                    // Enable high-quality image smoothing for prize
+                    this.ctx.save();
+                    this.ctx.imageSmoothingEnabled = true;
+                    this.ctx.imageSmoothingQuality = 'high';
+                    
                     // Draw image
                     this.ctx.shadowBlur = 30;
                     this.ctx.shadowColor = '#FFD700';
@@ -2553,6 +2651,7 @@ class Game {
                         prizeImageSize
                     );
                     this.ctx.shadowBlur = 0;
+                    this.ctx.restore();
                     
                     // Diamond-like shimmering frame effect
                     const frameThickness = 15;
