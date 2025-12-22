@@ -733,12 +733,48 @@ class Game {
         
         console.log(`🔄 Loading coins for user ID: ${this.userId}`);
         
+        // Try API server first (if available), then fallback to direct Firebase REST API
+        const apiServerUrl = 'http://localhost:5000/api/coins/' + this.userId;
+        const firebaseUrl = `https://aggame-fe195-default-rtdb.firebaseio.com/users/${this.userId}/coins.json`;
+        
         try {
-            // Use Firebase REST API directly
-            // Firebase REST API URL format: https://{database}.firebaseio.com/{path}.json
-            const firebaseUrl = `https://aggame-fe195-default-rtdb.firebaseio.com/users/${this.userId}/coins.json`;
+            // First, try API server (bypasses Firebase rules)
+            console.log(`📡 Trying API server: ${apiServerUrl}`);
+            try {
+                const apiResponse = await fetch(apiServerUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                    }
+                });
+                
+                if (apiResponse.ok) {
+                    const data = await apiResponse.json();
+                    this.coins = parseInt(data.coins, 10) || 0;
+                    console.log(`✅ Loaded coins via API server for user ${this.userId}: ${this.coins}`);
+                    
+                    // Switch to menu if we were on auth screen
+                    if (this.state === GAME_STATE.AUTH_REQUIRED) {
+                        this.state = GAME_STATE.MENU;
+                        console.log('✅ Switched to menu after loading coins');
+                    }
+                    
+                    // Set up polling
+                    if (!this.coinsPollInterval) {
+                        this.coinsPollInterval = setInterval(() => {
+                            this.loadCoinsFromFirebase();
+                        }, 5000);
+                    }
+                    return; // Success, exit early
+                } else {
+                    console.log(`⚠️ API server not available (${apiResponse.status}), trying direct Firebase...`);
+                }
+            } catch (apiError) {
+                console.log('⚠️ API server not reachable, trying direct Firebase...');
+            }
             
-            console.log(`📡 Fetching from: ${firebaseUrl}`);
+            // Fallback: Try direct Firebase REST API
+            console.log(`📡 Fetching from Firebase REST API: ${firebaseUrl}`);
             
             const response = await fetch(firebaseUrl, {
                 method: 'GET',
@@ -769,8 +805,14 @@ class Game {
                 }
             } else {
                 const errorText = await response.text();
-                console.warn(`⚠️ Direct path failed (${response.status}), trying alternative...`);
+                console.warn(`⚠️ Direct Firebase path failed (${response.status})`);
                 console.warn(`Error response:`, errorText);
+                
+                if (response.status === 401 || response.status === 403) {
+                    console.error('❌ Access denied by Firebase rules. Need to update rules or use API server.');
+                    console.error('💡 Solution: Update Firebase rules to allow reading users/{uid}/coins');
+                    console.error('💡 Or: Start API server (python3 api_server_simple.py)');
+                }
                 
                 // Try alternative path structure
                 const altUrl = `https://aggame-fe195-default-rtdb.firebaseio.com/users/${this.userId}.json`;
