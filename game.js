@@ -573,10 +573,8 @@ class Game {
         
         this.setupCanvas();
         this.setupControls();
-        // Setup Telegram after a short delay to ensure Firebase is initialized
-        setTimeout(() => {
-            this.setupTelegram();
-        }, 100);
+        // Setup Telegram immediately (doesn't need Firebase SDK for REST API)
+        this.setupTelegram();
         this.loadBackgroundImages();
         this.start();
         
@@ -715,22 +713,33 @@ class Game {
 
     async loadCoinsFromFirebase() {
         if (!this.userId) {
-            console.log('No user ID available');
+            console.log('❌ No user ID available for loading coins');
             return;
         }
+        
+        console.log(`🔄 Loading coins for user ID: ${this.userId}`);
         
         try {
             // Use Firebase REST API directly
             // Firebase REST API URL format: https://{database}.firebaseio.com/{path}.json
             const firebaseUrl = `https://aggame-fe195-default-rtdb.firebaseio.com/users/${this.userId}/coins.json`;
             
-            console.log(`Loading coins from Firebase REST API: ${firebaseUrl}`);
+            console.log(`📡 Fetching from: ${firebaseUrl}`);
             
-            const response = await fetch(firebaseUrl);
+            const response = await fetch(firebaseUrl, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                }
+            });
+            
+            console.log(`📥 Response status: ${response.status} ${response.statusText}`);
+            
             if (response.ok) {
                 const coins = await response.json();
+                console.log(`📦 Raw coins data:`, coins);
                 this.coins = coins !== null && coins !== undefined ? parseInt(coins, 10) || 0 : 0;
-                console.log(`Loaded coins for user ${this.userId}: ${this.coins}`);
+                console.log(`✅ Loaded coins for user ${this.userId}: ${this.coins}`);
                 
                 // Set up polling to update coins periodically
                 if (!this.coinsPollInterval) {
@@ -739,34 +748,56 @@ class Game {
                     }, 5000); // Update every 5 seconds
                 }
             } else {
+                const errorText = await response.text();
+                console.warn(`⚠️ Direct path failed (${response.status}), trying alternative...`);
+                console.warn(`Error response:`, errorText);
+                
                 // Try alternative path structure
-                console.log(`Trying alternative path structure...`);
                 const altUrl = `https://aggame-fe195-default-rtdb.firebaseio.com/users/${this.userId}.json`;
-                const altResponse = await fetch(altUrl);
+                console.log(`📡 Trying alternative path: ${altUrl}`);
+                
+                const altResponse = await fetch(altUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                    }
+                });
+                
+                console.log(`📥 Alternative response status: ${altResponse.status} ${altResponse.statusText}`);
+                
                 if (altResponse.ok) {
                     const userData = await altResponse.json();
+                    console.log(`📦 User data:`, userData);
                     if (userData && userData.coins !== undefined) {
                         this.coins = parseInt(userData.coins, 10) || 0;
-                        console.log(`Loaded coins from user data for user ${this.userId}: ${this.coins}`);
+                        console.log(`✅ Loaded coins from user data for user ${this.userId}: ${this.coins}`);
                     } else {
                         this.coins = 0;
-                        console.log(`No coins data found for user ${this.userId}`);
+                        console.log(`⚠️ No coins field in user data for user ${this.userId}`);
                     }
                 } else {
-                    console.error('Error loading coins from Firebase REST API:', altResponse.status);
+                    const altErrorText = await altResponse.text();
+                    console.error(`❌ Error loading coins from Firebase REST API: ${altResponse.status}`);
+                    console.error(`Error response:`, altErrorText);
                     this.coins = 0;
                 }
             }
         } catch (error) {
-            console.error('Error in loadCoinsFromFirebase:', error);
+            console.error('❌ Error in loadCoinsFromFirebase:', error);
+            console.error('Error details:', error.message, error.stack);
             this.coins = 0;
         }
     }
 
     setupTelegram() {
+        console.log('Setting up Telegram WebApp...');
         if (window.Telegram && window.Telegram.WebApp) {
             window.Telegram.WebApp.ready();
             window.Telegram.WebApp.expand();
+            
+            console.log('Telegram WebApp available');
+            console.log('initData:', window.Telegram.WebApp.initData);
+            console.log('initDataUnsafe:', window.Telegram.WebApp.initDataUnsafe);
             
             // Get user ID from Telegram WebApp
             const initData = window.Telegram.WebApp.initData;
@@ -775,33 +806,47 @@ class Game {
                     // Parse initData to get user ID
                     const params = new URLSearchParams(initData);
                     const userParam = params.get('user');
+                    console.log('User param from initData:', userParam);
                     if (userParam) {
                         const user = JSON.parse(decodeURIComponent(userParam));
                         this.userId = user.id;
-                        console.log('Telegram User ID:', this.userId);
+                        console.log('✅ Telegram User ID (from initData):', this.userId);
                         
-                        // Load coins from Firebase
-                        if (this.firebaseInitialized) {
-                            this.loadCoinsFromFirebase();
-                        }
+                        // Load coins from Firebase immediately
+                        this.loadCoinsFromFirebase();
                     }
                 } catch (error) {
                     console.error('Error parsing Telegram initData:', error);
                 }
             }
             
-            // Alternative method: try to get user from WebApp
+            // Alternative method: try to get user from WebApp (most reliable)
             if (!this.userId && window.Telegram.WebApp.initDataUnsafe) {
                 const user = window.Telegram.WebApp.initDataUnsafe.user;
+                console.log('initDataUnsafe.user:', user);
                 if (user && user.id) {
                     this.userId = user.id;
-                    console.log('Telegram User ID (from initDataUnsafe):', this.userId);
+                    console.log('✅ Telegram User ID (from initDataUnsafe):', this.userId);
                     
-                    // Load coins from Firebase
-                    if (this.firebaseInitialized) {
-                        this.loadCoinsFromFirebase();
-                    }
+                    // Load coins from Firebase immediately
+                    this.loadCoinsFromFirebase();
                 }
+            }
+            
+            // If still no user ID, try to get from query parameters
+            if (!this.userId) {
+                const urlParams = new URLSearchParams(window.location.search);
+                const userIdParam = urlParams.get('user_id');
+                if (userIdParam) {
+                    this.userId = parseInt(userIdParam, 10);
+                    console.log('✅ Telegram User ID (from URL param):', this.userId);
+                    this.loadCoinsFromFirebase();
+                }
+            }
+            
+            if (!this.userId) {
+                console.error('❌ Could not get Telegram User ID!');
+                console.log('Available Telegram WebApp properties:', Object.keys(window.Telegram.WebApp));
             }
             
             // Use theme colors if available
@@ -809,6 +854,8 @@ class Game {
             if (theme.bg_color) {
                 document.body.style.background = theme.bg_color;
             }
+        } else {
+            console.warn('Telegram WebApp not available - running outside Telegram?');
         }
     }
 
