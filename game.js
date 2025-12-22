@@ -2260,10 +2260,11 @@ class Game {
         this.ctx.imageSmoothingQuality = 'high';
         
         // Draw multiple copies for seamless scrolling
+        // Cards start from left edge and move to the left
         const copies = 2;
         for (let copy = 0; copy <= copies; copy++) {
             for (let i = 0; i < WHEEL_CONFIG.SQUARES_COUNT; i++) {
-                const cardX = CONFIG.CANVAS_WIDTH - this.allCompletePrizeScrollOffset + 
+                const cardX = -this.allCompletePrizeScrollOffset + 
                              (i * totalCardWidth) + (copy * WHEEL_CONFIG.SQUARES_COUNT * totalCardWidth);
                 
                 // Only draw if on screen
@@ -2478,24 +2479,63 @@ class Game {
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
         this.ctx.fillRect(0, wheelY - 30, CONFIG.CANVAS_WIDTH, wheelHeight + 60);
         
-        // Draw center indicator frame (like app icon selection)
+        // Draw modern stylish center indicator frame
         const centerFrameSize = WHEEL_CONFIG.SQUARE_WIDTH + 10;
         const centerFrameX = centerX - centerFrameSize / 2;
         const centerFrameY = wheelY - 5;
-        this.ctx.strokeStyle = 'rgba(100, 200, 255, 0.8)';
-        this.ctx.lineWidth = 4;
-        this.ctx.setLineDash([5, 5]);
-        this.ctx.strokeRect(centerFrameX, centerFrameY, centerFrameSize, centerFrameSize);
-        this.ctx.setLineDash([]);
+        const cornerRadius = 20;
         
-        // Draw center indicator triangle (like app selection)
-        this.ctx.fillStyle = 'rgba(100, 200, 255, 0.9)';
+        // Create animated gradient for frame (rainbow effect)
+        const time = Date.now() * 0.001;
+        const gradient = this.ctx.createLinearGradient(
+            centerFrameX, centerFrameY,
+            centerFrameX + centerFrameSize, centerFrameY + centerFrameSize
+        );
+        const hue1 = (time * 60) % 360;
+        const hue2 = (time * 60 + 120) % 360;
+        const hue3 = (time * 60 + 240) % 360;
+        gradient.addColorStop(0, `hsl(${hue1}, 100%, 60%)`);
+        gradient.addColorStop(0.5, `hsl(${hue2}, 100%, 60%)`);
+        gradient.addColorStop(1, `hsl(${hue3}, 100%, 60%)`);
+        
+        // Draw outer glow effect
+        this.ctx.save();
+        this.ctx.shadowBlur = 30;
+        this.ctx.shadowColor = `hsl(${hue1}, 100%, 60%)`;
+        this.ctx.shadowOffsetX = 0;
+        this.ctx.shadowOffsetY = 0;
+        
+        // Draw frame with rounded corners and gradient
+        this.ctx.strokeStyle = gradient;
+        this.ctx.lineWidth = 6;
         this.ctx.beginPath();
-        this.ctx.moveTo(centerX, centerFrameY - 8);
-        this.ctx.lineTo(centerX - 8, centerFrameY + 2);
-        this.ctx.lineTo(centerX + 8, centerFrameY + 2);
-        this.ctx.closePath();
-        this.ctx.fill();
+        this.ctx.roundRect(centerFrameX, centerFrameY, centerFrameSize, centerFrameSize, cornerRadius);
+        this.ctx.stroke();
+        
+        // Draw inner highlight
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.roundRect(centerFrameX + 3, centerFrameY + 3, centerFrameSize - 6, centerFrameSize - 6, cornerRadius - 3);
+        this.ctx.stroke();
+        
+        this.ctx.restore();
+        
+        // Draw modern corner accents
+        const accentSize = 15;
+        this.ctx.fillStyle = gradient;
+        // Top-left corner
+        this.ctx.fillRect(centerFrameX, centerFrameY, accentSize, 4);
+        this.ctx.fillRect(centerFrameX, centerFrameY, 4, accentSize);
+        // Top-right corner
+        this.ctx.fillRect(centerFrameX + centerFrameSize - accentSize, centerFrameY, accentSize, 4);
+        this.ctx.fillRect(centerFrameX + centerFrameSize - 4, centerFrameY, 4, accentSize);
+        // Bottom-left corner
+        this.ctx.fillRect(centerFrameX, centerFrameY + centerFrameSize - 4, accentSize, 4);
+        this.ctx.fillRect(centerFrameX, centerFrameY + centerFrameSize - accentSize, 4, accentSize);
+        // Bottom-right corner
+        this.ctx.fillRect(centerFrameX + centerFrameSize - accentSize, centerFrameY + centerFrameSize - 4, accentSize, 4);
+        this.ctx.fillRect(centerFrameX + centerFrameSize - 4, centerFrameY + centerFrameSize - accentSize, 4, accentSize);
         
         // Draw squares with wrap-around for infinite scroll
         // Draw multiple copies to ensure seamless scrolling
