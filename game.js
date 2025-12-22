@@ -720,16 +720,16 @@ class Game {
         }
         
         try {
-            // Use API server instead of direct Firebase access
-            // This bypasses Firebase security rules
-            const apiUrl = 'http://localhost:5000/api/coins/' + this.userId;
+            // Use Firebase REST API directly
+            // Firebase REST API URL format: https://{database}.firebaseio.com/{path}.json
+            const firebaseUrl = `https://aggame-fe195-default-rtdb.firebaseio.com/users/${this.userId}/coins.json`;
             
-            console.log(`Loading coins from API: ${apiUrl}`);
+            console.log(`Loading coins from Firebase REST API: ${firebaseUrl}`);
             
-            const response = await fetch(apiUrl);
+            const response = await fetch(firebaseUrl);
             if (response.ok) {
-                const data = await response.json();
-                this.coins = parseInt(data.coins, 10) || 0;
+                const coins = await response.json();
+                this.coins = coins !== null && coins !== undefined ? parseInt(coins, 10) || 0 : 0;
                 console.log(`Loaded coins for user ${this.userId}: ${this.coins}`);
                 
                 // Set up polling to update coins periodically
@@ -739,28 +739,27 @@ class Game {
                     }, 5000); // Update every 5 seconds
                 }
             } else {
-                console.error('Error loading coins from API:', response.status);
-                this.coins = 0;
+                // Try alternative path structure
+                console.log(`Trying alternative path structure...`);
+                const altUrl = `https://aggame-fe195-default-rtdb.firebaseio.com/users/${this.userId}.json`;
+                const altResponse = await fetch(altUrl);
+                if (altResponse.ok) {
+                    const userData = await altResponse.json();
+                    if (userData && userData.coins !== undefined) {
+                        this.coins = parseInt(userData.coins, 10) || 0;
+                        console.log(`Loaded coins from user data for user ${this.userId}: ${this.coins}`);
+                    } else {
+                        this.coins = 0;
+                        console.log(`No coins data found for user ${this.userId}`);
+                    }
+                } else {
+                    console.error('Error loading coins from Firebase REST API:', altResponse.status);
+                    this.coins = 0;
+                }
             }
         } catch (error) {
             console.error('Error in loadCoinsFromFirebase:', error);
-            // Fallback: try direct Firebase access if API fails
-            if (this.firebaseInitialized) {
-                try {
-                    const database = firebase.database();
-                    const coinsRef = database.ref(`users/${this.userId}/coins`);
-                    coinsRef.once('value', (snapshot) => {
-                        const coins = snapshot.val();
-                        this.coins = coins !== null ? parseInt(coins, 10) || 0 : 0;
-                        console.log(`Loaded coins from Firebase fallback: ${this.coins}`);
-                    });
-                } catch (fbError) {
-                    console.error('Firebase fallback also failed:', fbError);
-                    this.coins = 0;
-                }
-            } else {
-                this.coins = 0;
-            }
+            this.coins = 0;
         }
     }
 
