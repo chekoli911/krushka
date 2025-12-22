@@ -834,27 +834,27 @@ class Game {
         
         const centerX = CONFIG.CANVAS_WIDTH / 2;
         const centerY = CONFIG.CANVAS_HEIGHT / 2;
-        const dialogWidth = 400;
-        const dialogHeight = 200;
+        const dialogWidth = this.isMobile ? 280 : 320;
+        const dialogHeight = this.isMobile ? 180 : 200;
         const dialogX = centerX - dialogWidth / 2;
         const dialogY = centerY - dialogHeight / 2;
         
-        // Checkbox bounds (approximate)
-        const checkboxX = dialogX + 30;
-        const checkboxY = dialogY + 120;
-        const checkboxSize = 20;
+        // Checkbox bounds
+        const checkboxX = dialogX + 20;
+        const checkboxY = dialogY + (this.isMobile ? 100 : 110);
+        const checkboxSize = 18;
         
         // Yes button bounds
-        const yesButtonX = centerX - 100;
-        const yesButtonY = dialogY + 150;
-        const yesButtonWidth = 80;
-        const yesButtonHeight = 30;
+        const yesButtonX = centerX - (this.isMobile ? 70 : 85);
+        const yesButtonY = dialogY + (this.isMobile ? 135 : 150);
+        const yesButtonWidth = this.isMobile ? 60 : 70;
+        const yesButtonHeight = 28;
         
         // No button bounds
-        const noButtonX = centerX + 20;
-        const noButtonY = dialogY + 150;
-        const noButtonWidth = 80;
-        const noButtonHeight = 30;
+        const noButtonX = centerX + (this.isMobile ? 10 : 15);
+        const noButtonY = dialogY + (this.isMobile ? 135 : 150);
+        const noButtonWidth = this.isMobile ? 60 : 70;
+        const noButtonHeight = 28;
         
         // Check if checkbox was clicked
         if (x >= checkboxX && x <= checkboxX + checkboxSize && 
@@ -896,112 +896,151 @@ class Game {
         
         const centerX = CONFIG.CANVAS_WIDTH / 2;
         const centerY = CONFIG.CANVAS_HEIGHT / 2;
-        const dialogWidth = 400;
-        const dialogHeight = 200;
+        const dialogWidth = this.isMobile ? 280 : 320;
+        const dialogHeight = this.isMobile ? 180 : 200;
         const dialogX = centerX - dialogWidth / 2;
         const dialogY = centerY - dialogHeight / 2;
         
         // Draw semi-transparent background overlay
         this.ctx.save();
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
         this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
         this.ctx.restore();
         
-        // Draw dialog box
+        // Draw dialog box with shadow
         this.ctx.save();
-        this.ctx.fillStyle = '#1a1a1a';
+        // Shadow
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        this.ctx.roundRect(dialogX + 4, dialogY + 4, dialogWidth, dialogHeight, 12);
+        this.ctx.fill();
+        
+        // Main dialog box
+        this.ctx.fillStyle = '#2a2a2a';
         this.ctx.strokeStyle = '#FFD700';
-        this.ctx.lineWidth = 3;
-        this.ctx.roundRect(dialogX, dialogY, dialogWidth, dialogHeight, 15);
+        this.ctx.lineWidth = 2;
+        this.ctx.roundRect(dialogX, dialogY, dialogWidth, dialogHeight, 12);
         this.ctx.fill();
         this.ctx.stroke();
         this.ctx.restore();
         
         // Draw title
         this.ctx.save();
-        this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.font = 'bold 24px monospace';
+        this.ctx.fillStyle = '#FFD700';
+        this.ctx.font = this.isMobile ? 'bold 20px monospace' : 'bold 22px monospace';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText('Confirmation', centerX, dialogY + 40);
+        this.ctx.fillText('Confirmation', centerX, dialogY + (this.isMobile ? 30 : 35));
         this.ctx.restore();
         
         // Draw message
         this.ctx.save();
         this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.font = '18px monospace';
+        this.ctx.font = this.isMobile ? '16px monospace' : '17px monospace';
         this.ctx.textAlign = 'center';
-        const message = `Are you sure you want to spend ${this.coinsConfirmationDialog.coinsCost} coins?`;
-        this.ctx.fillText(message, centerX, dialogY + 80);
+        const message = `Spend ${this.coinsConfirmationDialog.coinsCost} coins?`;
+        this.ctx.fillText(message, centerX, dialogY + (this.isMobile ? 65 : 70));
         this.ctx.restore();
         
-        // Draw checkbox
-        const checkboxX = dialogX + 30;
-        const checkboxY = dialogY + 120;
-        const checkboxSize = 20;
+        // Draw checkbox area (with background for better visibility)
+        const checkboxX = dialogX + 20;
+        const checkboxY = dialogY + (this.isMobile ? 100 : 110);
+        const checkboxSize = 18;
+        const checkboxLabelX = checkboxX + checkboxSize + 10;
+        const checkboxLabelY = checkboxY + 13;
         
+        // Checkbox background (slightly larger for easier clicking)
         this.ctx.save();
-        this.ctx.strokeStyle = '#FFFFFF';
-        this.ctx.lineWidth = 2;
-        this.ctx.strokeRect(checkboxX, checkboxY, checkboxSize, checkboxSize);
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        this.ctx.roundRect(checkboxX - 3, checkboxY - 3, checkboxSize + 6, checkboxSize + 6, 3);
+        this.ctx.fill();
+        this.ctx.restore();
         
+        // Draw checkbox border
+        this.ctx.save();
+        this.ctx.strokeStyle = this.coinsConfirmationDialog.checkbox ? '#FFD700' : '#CCCCCC';
+        this.ctx.lineWidth = 2;
+        this.ctx.roundRect(checkboxX, checkboxY, checkboxSize, checkboxSize, 3);
+        this.ctx.stroke();
+        
+        // Draw checkbox fill and checkmark if checked
         if (this.coinsConfirmationDialog.checkbox) {
             this.ctx.fillStyle = '#FFD700';
-            this.ctx.fillRect(checkboxX + 3, checkboxY + 3, checkboxSize - 6, checkboxSize - 6);
+            this.ctx.roundRect(checkboxX + 2, checkboxY + 2, checkboxSize - 4, checkboxSize - 4, 2);
+            this.ctx.fill();
+            
             // Draw checkmark
             this.ctx.strokeStyle = '#000000';
-            this.ctx.lineWidth = 3;
+            this.ctx.lineWidth = 2.5;
+            this.ctx.lineCap = 'round';
+            this.ctx.lineJoin = 'round';
             this.ctx.beginPath();
-            this.ctx.moveTo(checkboxX + 5, checkboxY + 10);
-            this.ctx.lineTo(checkboxX + 9, checkboxY + 14);
-            this.ctx.lineTo(checkboxX + 15, checkboxY + 6);
+            this.ctx.moveTo(checkboxX + 4, checkboxY + 9);
+            this.ctx.lineTo(checkboxX + 8, checkboxY + 13);
+            this.ctx.lineTo(checkboxX + 14, checkboxY + 5);
             this.ctx.stroke();
         }
         this.ctx.restore();
         
         // Draw checkbox label
         this.ctx.save();
-        this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.font = '14px monospace';
+        this.ctx.fillStyle = '#CCCCCC';
+        this.ctx.font = this.isMobile ? '12px monospace' : '13px monospace';
         this.ctx.textAlign = 'left';
-        this.ctx.fillText("Don't show this message again", checkboxX + checkboxSize + 10, checkboxY + 15);
+        const labelText = "Don't ask again";
+        this.ctx.fillText(labelText, checkboxLabelX, checkboxLabelY);
         this.ctx.restore();
         
         // Draw Yes button
-        const yesButtonX = centerX - 100;
-        const yesButtonY = dialogY + 150;
-        const yesButtonWidth = 80;
-        const yesButtonHeight = 30;
+        const yesButtonX = centerX - (this.isMobile ? 70 : 85);
+        const yesButtonY = dialogY + (this.isMobile ? 135 : 150);
+        const yesButtonWidth = this.isMobile ? 60 : 70;
+        const yesButtonHeight = 28;
         
         this.ctx.save();
+        // Button shadow
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        this.ctx.roundRect(yesButtonX + 2, yesButtonY + 2, yesButtonWidth, yesButtonHeight, 6);
+        this.ctx.fill();
+        
+        // Button fill
         this.ctx.fillStyle = '#4CAF50';
         this.ctx.strokeStyle = '#FFFFFF';
-        this.ctx.lineWidth = 2;
-        this.ctx.roundRect(yesButtonX, yesButtonY, yesButtonWidth, yesButtonHeight, 5);
+        this.ctx.lineWidth = 1.5;
+        this.ctx.roundRect(yesButtonX, yesButtonY, yesButtonWidth, yesButtonHeight, 6);
         this.ctx.fill();
         this.ctx.stroke();
+        
+        // Button text
         this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.font = 'bold 16px monospace';
+        this.ctx.font = this.isMobile ? 'bold 14px monospace' : 'bold 15px monospace';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText('YES', yesButtonX + yesButtonWidth / 2, yesButtonY + 20);
+        this.ctx.fillText('YES', yesButtonX + yesButtonWidth / 2, yesButtonY + (this.isMobile ? 18 : 19));
         this.ctx.restore();
         
         // Draw No button
-        const noButtonX = centerX + 20;
-        const noButtonY = dialogY + 150;
-        const noButtonWidth = 80;
-        const noButtonHeight = 30;
+        const noButtonX = centerX + (this.isMobile ? 10 : 15);
+        const noButtonY = dialogY + (this.isMobile ? 135 : 150);
+        const noButtonWidth = this.isMobile ? 60 : 70;
+        const noButtonHeight = 28;
         
         this.ctx.save();
+        // Button shadow
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        this.ctx.roundRect(noButtonX + 2, noButtonY + 2, noButtonWidth, noButtonHeight, 6);
+        this.ctx.fill();
+        
+        // Button fill
         this.ctx.fillStyle = '#F44336';
         this.ctx.strokeStyle = '#FFFFFF';
-        this.ctx.lineWidth = 2;
-        this.ctx.roundRect(noButtonX, noButtonY, noButtonWidth, noButtonHeight, 5);
+        this.ctx.lineWidth = 1.5;
+        this.ctx.roundRect(noButtonX, noButtonY, noButtonWidth, noButtonHeight, 6);
         this.ctx.fill();
         this.ctx.stroke();
+        
+        // Button text
         this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.font = 'bold 16px monospace';
+        this.ctx.font = this.isMobile ? 'bold 14px monospace' : 'bold 15px monospace';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText('NO', noButtonX + noButtonWidth / 2, noButtonY + 20);
+        this.ctx.fillText('NO', noButtonX + noButtonWidth / 2, noButtonY + (this.isMobile ? 18 : 19));
         this.ctx.restore();
     }
 
