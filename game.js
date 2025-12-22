@@ -856,16 +856,18 @@ class Game {
         const noButtonWidth = this.isMobile ? 60 : 70;
         const noButtonHeight = 28;
         
-        // Check if checkbox was clicked
-        if (x >= checkboxX && x <= checkboxX + checkboxSize && 
-            y >= checkboxY && y <= checkboxY + checkboxSize) {
+        // Check if checkbox was clicked (with larger click area for better sensitivity)
+        const checkboxClickArea = 5; // Extra pixels for easier clicking
+        if (x >= checkboxX - checkboxClickArea && x <= checkboxX + checkboxSize + checkboxClickArea && 
+            y >= checkboxY - checkboxClickArea && y <= checkboxY + checkboxSize + checkboxClickArea) {
             this.coinsConfirmationDialog.checkbox = !this.coinsConfirmationDialog.checkbox;
             return true;
         }
         
-        // Check if Yes button was clicked
-        if (x >= yesButtonX && x <= yesButtonX + yesButtonWidth &&
-            y >= yesButtonY && y <= yesButtonY + yesButtonHeight) {
+        // Check if Yes button was clicked (with larger click area for better sensitivity)
+        const yesButtonClickArea = 5; // Extra pixels for easier clicking
+        if (x >= yesButtonX - yesButtonClickArea && x <= yesButtonX + yesButtonWidth + yesButtonClickArea &&
+            y >= yesButtonY - yesButtonClickArea && y <= yesButtonY + yesButtonHeight + yesButtonClickArea) {
             const skipNextTime = this.coinsConfirmationDialog.checkbox;
             if (skipNextTime) {
                 localStorage.setItem('skip_coins_confirmation', 'true');
@@ -877,9 +879,10 @@ class Game {
             return true;
         }
         
-        // Check if No button was clicked
-        if (x >= noButtonX && x <= noButtonX + noButtonWidth &&
-            y >= noButtonY && y <= noButtonY + noButtonHeight) {
+        // Check if No button was clicked (with larger click area for better sensitivity)
+        const noButtonClickArea = 5; // Extra pixels for easier clicking
+        if (x >= noButtonX - noButtonClickArea && x <= noButtonX + noButtonWidth + noButtonClickArea &&
+            y >= noButtonY - noButtonClickArea && y <= noButtonY + noButtonHeight + noButtonClickArea) {
             this.coinsConfirmationDialog.visible = false;
             this.coinsConfirmationDialog.resolve(false);
             this.coinsConfirmationDialog = null;
@@ -903,29 +906,29 @@ class Game {
         
         // Draw semi-transparent background overlay
         this.ctx.save();
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
         this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
         this.ctx.restore();
         
         // Draw dialog box with shadow
         this.ctx.save();
         // Shadow
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        this.ctx.roundRect(dialogX + 4, dialogY + 4, dialogWidth, dialogHeight, 12);
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        this.ctx.roundRect(dialogX + 3, dialogY + 3, dialogWidth, dialogHeight, 10);
         this.ctx.fill();
         
-        // Main dialog box
-        this.ctx.fillStyle = '#2a2a2a';
-        this.ctx.strokeStyle = '#FFD700';
-        this.ctx.lineWidth = 2;
-        this.ctx.roundRect(dialogX, dialogY, dialogWidth, dialogHeight, 12);
+        // Main dialog box - new color scheme
+        this.ctx.fillStyle = '#1e1e2e'; // Dark blue-gray background
+        this.ctx.strokeStyle = '#4a9eff'; // Bright blue border
+        this.ctx.lineWidth = 2.5;
+        this.ctx.roundRect(dialogX, dialogY, dialogWidth, dialogHeight, 10);
         this.ctx.fill();
         this.ctx.stroke();
         this.ctx.restore();
         
         // Draw title
         this.ctx.save();
-        this.ctx.fillStyle = '#FFD700';
+        this.ctx.fillStyle = '#4a9eff'; // Bright blue title
         this.ctx.font = this.isMobile ? 'bold 20px monospace' : 'bold 22px monospace';
         this.ctx.textAlign = 'center';
         this.ctx.fillText('Confirmation', centerX, dialogY + (this.isMobile ? 30 : 35));
@@ -933,7 +936,7 @@ class Game {
         
         // Draw message
         this.ctx.save();
-        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.fillStyle = '#e0e0e0'; // Light gray text
         this.ctx.font = this.isMobile ? '16px monospace' : '17px monospace';
         this.ctx.textAlign = 'center';
         const message = `Spend ${this.coinsConfirmationDialog.coinsCost} coins?`;
@@ -949,26 +952,26 @@ class Game {
         
         // Checkbox background (slightly larger for easier clicking)
         this.ctx.save();
-        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        this.ctx.fillStyle = 'rgba(74, 158, 255, 0.15)'; // Light blue background
         this.ctx.roundRect(checkboxX - 3, checkboxY - 3, checkboxSize + 6, checkboxSize + 6, 3);
         this.ctx.fill();
         this.ctx.restore();
         
         // Draw checkbox border
         this.ctx.save();
-        this.ctx.strokeStyle = this.coinsConfirmationDialog.checkbox ? '#FFD700' : '#CCCCCC';
+        this.ctx.strokeStyle = this.coinsConfirmationDialog.checkbox ? '#4a9eff' : '#6a6a7a';
         this.ctx.lineWidth = 2;
         this.ctx.roundRect(checkboxX, checkboxY, checkboxSize, checkboxSize, 3);
         this.ctx.stroke();
         
         // Draw checkbox fill and checkmark if checked
         if (this.coinsConfirmationDialog.checkbox) {
-            this.ctx.fillStyle = '#FFD700';
+            this.ctx.fillStyle = '#4a9eff'; // Bright blue fill
             this.ctx.roundRect(checkboxX + 2, checkboxY + 2, checkboxSize - 4, checkboxSize - 4, 2);
             this.ctx.fill();
             
             // Draw checkmark
-            this.ctx.strokeStyle = '#000000';
+            this.ctx.strokeStyle = '#FFFFFF'; // White checkmark
             this.ctx.lineWidth = 2.5;
             this.ctx.lineCap = 'round';
             this.ctx.lineJoin = 'round';
@@ -980,10 +983,10 @@ class Game {
         }
         this.ctx.restore();
         
-        // Draw checkbox label
+        // Draw checkbox label - WHITE text
         this.ctx.save();
-        this.ctx.fillStyle = '#CCCCCC';
-        this.ctx.font = this.isMobile ? '12px monospace' : '13px monospace';
+        this.ctx.fillStyle = '#FFFFFF'; // Pure white text
+        this.ctx.font = this.isMobile ? 'bold 12px monospace' : 'bold 13px monospace';
         this.ctx.textAlign = 'left';
         const labelText = "Don't ask again";
         this.ctx.fillText(labelText, checkboxLabelX, checkboxLabelY);
@@ -997,23 +1000,29 @@ class Game {
         
         this.ctx.save();
         // Button shadow
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
         this.ctx.roundRect(yesButtonX + 2, yesButtonY + 2, yesButtonWidth, yesButtonHeight, 6);
         this.ctx.fill();
         
-        // Button fill
-        this.ctx.fillStyle = '#4CAF50';
-        this.ctx.strokeStyle = '#FFFFFF';
-        this.ctx.lineWidth = 1.5;
+        // Button fill - new color scheme
+        this.ctx.fillStyle = '#2d5aa0'; // Dark blue
+        this.ctx.strokeStyle = '#4a9eff'; // Bright blue border
+        this.ctx.lineWidth = 2;
         this.ctx.roundRect(yesButtonX, yesButtonY, yesButtonWidth, yesButtonHeight, 6);
         this.ctx.fill();
         this.ctx.stroke();
         
-        // Button text
-        this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.font = this.isMobile ? 'bold 14px monospace' : 'bold 15px monospace';
+        // Button text - WHITE and bold for better visibility
+        this.ctx.fillStyle = '#FFFFFF'; // Pure white
+        this.ctx.font = this.isMobile ? 'bold 15px monospace' : 'bold 16px monospace';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText('YES', yesButtonX + yesButtonWidth / 2, yesButtonY + (this.isMobile ? 18 : 19));
+        this.ctx.textBaseline = 'middle';
+        // Add text shadow for better visibility
+        this.ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+        this.ctx.shadowBlur = 2;
+        this.ctx.shadowOffsetX = 1;
+        this.ctx.shadowOffsetY = 1;
+        this.ctx.fillText('YES', yesButtonX + yesButtonWidth / 2, yesButtonY + yesButtonHeight / 2);
         this.ctx.restore();
         
         // Draw No button
@@ -1024,23 +1033,29 @@ class Game {
         
         this.ctx.save();
         // Button shadow
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
         this.ctx.roundRect(noButtonX + 2, noButtonY + 2, noButtonWidth, noButtonHeight, 6);
         this.ctx.fill();
         
-        // Button fill
-        this.ctx.fillStyle = '#F44336';
-        this.ctx.strokeStyle = '#FFFFFF';
-        this.ctx.lineWidth = 1.5;
+        // Button fill - new color scheme
+        this.ctx.fillStyle = '#5a2d2d'; // Dark red-brown
+        this.ctx.strokeStyle = '#ff6b6b'; // Bright red border
+        this.ctx.lineWidth = 2;
         this.ctx.roundRect(noButtonX, noButtonY, noButtonWidth, noButtonHeight, 6);
         this.ctx.fill();
         this.ctx.stroke();
         
-        // Button text
-        this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.font = this.isMobile ? 'bold 14px monospace' : 'bold 15px monospace';
+        // Button text - WHITE and bold for better visibility
+        this.ctx.fillStyle = '#FFFFFF'; // Pure white
+        this.ctx.font = this.isMobile ? 'bold 15px monospace' : 'bold 16px monospace';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText('NO', noButtonX + noButtonWidth / 2, noButtonY + (this.isMobile ? 18 : 19));
+        this.ctx.textBaseline = 'middle';
+        // Add text shadow for better visibility
+        this.ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+        this.ctx.shadowBlur = 2;
+        this.ctx.shadowOffsetX = 1;
+        this.ctx.shadowOffsetY = 1;
+        this.ctx.fillText('NO', noButtonX + noButtonWidth / 2, noButtonY + noButtonHeight / 2);
         this.ctx.restore();
     }
 
