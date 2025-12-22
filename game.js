@@ -190,8 +190,9 @@ const GAME_STATE = {
 // ==================== POINTS SYSTEM ====================
 const POINTS_MANAGER = {
     STORAGE_KEY: 'krushka_points',
-    POINTS_PER_8_LEVELS: 1000,
+    POINTS_PER_8_LEVELS: 100,
     WHEEL_COST: 100,
+    COINS_COST_PER_GAME: 2, // Cost in coins to start a game
     
     getPoints() {
         try {
@@ -546,6 +547,8 @@ class Game {
         this.firebaseInitialized = false;
         this.coinsPollInterval = null; // Interval for polling coins from API
         this.authButtonBounds = null; // Button bounds for auth screen
+        this.coinsDeductionMessage = null; // Message about coins deduction
+        this.coinsDeductionMessageTime = 0; // Time when message was shown
         this.initFirebase();
         
         // Wheel of Fortune
@@ -1552,14 +1555,15 @@ class Game {
             // Stop demo mode on click/tap
             this.stopDemo();
         } else if (this.state === GAME_STATE.MENU) {
-            // Check if user has coins
-            if (this.coins === 0) {
-                // Show message that game cannot start without coins
-                console.log('Game cannot start: user has 0 coins');
-                // You can add a visual message here if needed
+            // Check if user has enough coins
+            const coinsCost = POINTS_MANAGER.COINS_COST_PER_GAME;
+            if (this.coins < coinsCost) {
+                // Show message that game cannot start without enough coins
+                console.log(`Game cannot start: user has ${this.coins} coins, need ${coinsCost}`);
+                // Visual message will be shown in startLevel if needed
                 return;
             }
-            this.startLevel(false); // Normal mode
+            this.startLevel(false); // Normal mode (async, will check coins inside)
         } else if (this.state === GAME_STATE.LEVEL_COMPLETE) {
             this.nextLevel();
         } else if (this.state === GAME_STATE.GAME_OVER) {
@@ -1836,11 +1840,37 @@ class Game {
         }
     }
 
-    startLevel(demoMode = false) {
+    async startLevel(demoMode = false) {
         // Clear demo timer when starting game
         if (this.demoTimer) {
             clearTimeout(this.demoTimer);
             this.demoTimer = null;
+        }
+        
+        // Spend coins for starting a game (only in normal mode, not demo)
+        if (!demoMode && this.userId) {
+            const coinsCost = POINTS_MANAGER.COINS_COST_PER_GAME;
+            
+            // Check if user has enough coins
+            if (this.coins < coinsCost) {
+                console.log(`❌ Not enough coins to start game: have ${this.coins}, need ${coinsCost}`);
+                // Show message to user
+                alert(`Not enough coins! You need ${coinsCost} coins to play. You have ${this.coins} coins.`);
+                return; // Don't start the game
+            }
+            
+            // Spend coins
+            const success = await this.spendCoinsInFirebase(coinsCost);
+            if (!success) {
+                console.log('❌ Failed to spend coins, game not started');
+                alert(`Failed to process payment. Please try again.`);
+                return; // Don't start the game
+            }
+            
+            // Show message about coins deduction
+            console.log(`💰 Spent ${coinsCost} coins. Remaining: ${this.coins}`);
+            this.coinsDeductionMessage = `-${coinsCost} coins (Remaining: ${this.coins})`;
+            this.coinsDeductionMessageTime = Date.now();
         }
         
         this.state = GAME_STATE.PLAYING;
@@ -2414,6 +2444,26 @@ class Game {
         const scoreY = this.isMobile ? 80 : 80; // Score position (80px from top on mobile)
         const pointsY = this.isMobile ? 60 : 60; // Points position
         
+        // Show coins deduction message if recently shown (for 3 seconds)
+        if (this.coinsDeductionMessage && this.coinsDeductionMessageTime) {
+            const messageAge = Date.now() - this.coinsDeductionMessageTime;
+            if (messageAge < 3000) { // Show for 3 seconds
+                const alpha = 1 - (messageAge / 3000); // Fade out
+                this.ctx.save();
+                this.ctx.globalAlpha = alpha;
+                this.ctx.fillStyle = '#FFD700';
+                this.ctx.font = 'bold 20px monospace';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(this.coinsDeductionMessage, CONFIG.CANVAS_WIDTH / 2, 50);
+                this.ctx.restore();
+                this.ctx.textAlign = 'left';
+            } else {
+                // Clear message after 3 seconds
+                this.coinsDeductionMessage = null;
+                this.coinsDeductionMessageTime = 0;
+            }
+        }
+        
         // Level indicator (left side with 40px offset)
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = this.isMobile ? 'bold 15px monospace' : 'bold 18px monospace'; // 15px for headers
@@ -2585,27 +2635,38 @@ class Game {
         this.ctx.fillStyle = '#000000';
         this.ctx.fillRect(btnX - 5, startY, btnWidth + 10, btnHeight + 10);
         
-        // Check if user has coins
-        if (this.coins === 0) {
+        // Check if user has enough coins (need 2 coins to play)
+        const coinsCost = POINTS_MANAGER.COINS_COST_PER_GAME;
+        this.ctx.textAlign = 'center';
+        
+        if (this.coins < coinsCost) {
             // Disabled button style (gray)
             this.ctx.fillStyle = '#7F8C8D';
             this.ctx.fillRect(btnX, startY + 5, btnWidth, btnHeight);
             this.ctx.fillStyle = '#FFFFFF';
             this.ctx.font = 'bold 18px monospace';
-            this.ctx.fillText('NO COINS', canvasWidth / 2, startY + 30);
+            this.ctx.fillText('NOT ENOUGH COINS', canvasWidth / 2, startY + 30);
             
             // Show message below button
             this.ctx.font = '14px monospace';
             this.ctx.fillStyle = '#FF6B6B';
-            this.ctx.fillText('You need coins to play!', canvasWidth / 2, startY + btnHeight + 25);
+            this.ctx.fillText(`You need ${coinsCost} coins to play!`, canvasWidth / 2, startY + btnHeight + 25);
+            this.ctx.fillText(`You have: ${this.coins} coins`, canvasWidth / 2, startY + btnHeight + 45);
         } else {
             // Normal button style (green)
-        this.ctx.fillStyle = '#27AE60';
+            this.ctx.fillStyle = '#27AE60';
             this.ctx.fillRect(btnX, startY + 5, btnWidth, btnHeight);
-        this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.font = 'bold 18px monospace';
+            this.ctx.fillStyle = '#FFFFFF';
+            this.ctx.font = 'bold 18px monospace';
             this.ctx.fillText('START GAME', canvasWidth / 2, startY + 30);
+            
+            // Show cost below button
+            this.ctx.font = '12px monospace';
+            this.ctx.fillStyle = '#FFFF00';
+            this.ctx.fillText(`Cost: ${coinsCost} coins`, canvasWidth / 2, startY + btnHeight + 20);
         }
+        
+        this.ctx.textAlign = 'left';
         
         // Show "From the creators of arenapsgm.ru 2026" text
             this.ctx.font = '12px monospace';
