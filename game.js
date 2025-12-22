@@ -549,6 +549,8 @@ class Game {
         this.authButtonBounds = null; // Button bounds for auth screen
         this.coinsDeductionMessage = null; // Message about coins deduction
         this.coinsDeductionMessageTime = 0; // Time when message was shown
+        this.showCoinsConfirmation = true; // Show confirmation dialog (can be disabled via localStorage)
+        this.coinsConfirmationDialog = null; // Confirmation dialog state: {visible: true/false, checkbox: true/false}
         this.initFirebase();
         
         // Wheel of Fortune
@@ -804,6 +806,203 @@ class Game {
             console.error('Error details:', error.message, error.stack);
             return false;
         }
+    }
+
+    async showCoinsSpendConfirmation(coinsCost) {
+        // Check if user has disabled confirmation dialog
+        const skipConfirmation = localStorage.getItem('skip_coins_confirmation') === 'true';
+        if (skipConfirmation) {
+            console.log('✅ Confirmation skipped (user preference)');
+            return true;
+        }
+        
+        return new Promise((resolve) => {
+            // Show confirmation dialog on canvas
+            this.coinsConfirmationDialog = {
+                visible: true,
+                coinsCost: coinsCost,
+                checkbox: false,
+                resolve: resolve
+            };
+        });
+    }
+
+    handleCoinsConfirmationClick(x, y) {
+        if (!this.coinsConfirmationDialog || !this.coinsConfirmationDialog.visible) {
+            return false;
+        }
+        
+        const centerX = CONFIG.CANVAS_WIDTH / 2;
+        const centerY = CONFIG.CANVAS_HEIGHT / 2;
+        const dialogWidth = 400;
+        const dialogHeight = 200;
+        const dialogX = centerX - dialogWidth / 2;
+        const dialogY = centerY - dialogHeight / 2;
+        
+        // Checkbox bounds (approximate)
+        const checkboxX = dialogX + 30;
+        const checkboxY = dialogY + 120;
+        const checkboxSize = 20;
+        
+        // Yes button bounds
+        const yesButtonX = centerX - 100;
+        const yesButtonY = dialogY + 150;
+        const yesButtonWidth = 80;
+        const yesButtonHeight = 30;
+        
+        // No button bounds
+        const noButtonX = centerX + 20;
+        const noButtonY = dialogY + 150;
+        const noButtonWidth = 80;
+        const noButtonHeight = 30;
+        
+        // Check if checkbox was clicked
+        if (x >= checkboxX && x <= checkboxX + checkboxSize && 
+            y >= checkboxY && y <= checkboxY + checkboxSize) {
+            this.coinsConfirmationDialog.checkbox = !this.coinsConfirmationDialog.checkbox;
+            return true;
+        }
+        
+        // Check if Yes button was clicked
+        if (x >= yesButtonX && x <= yesButtonX + yesButtonWidth &&
+            y >= yesButtonY && y <= yesButtonY + yesButtonHeight) {
+            const skipNextTime = this.coinsConfirmationDialog.checkbox;
+            if (skipNextTime) {
+                localStorage.setItem('skip_coins_confirmation', 'true');
+                console.log('✅ User chose to skip confirmation in future');
+            }
+            this.coinsConfirmationDialog.visible = false;
+            this.coinsConfirmationDialog.resolve(true);
+            this.coinsConfirmationDialog = null;
+            return true;
+        }
+        
+        // Check if No button was clicked
+        if (x >= noButtonX && x <= noButtonX + noButtonWidth &&
+            y >= noButtonY && y <= noButtonY + noButtonHeight) {
+            this.coinsConfirmationDialog.visible = false;
+            this.coinsConfirmationDialog.resolve(false);
+            this.coinsConfirmationDialog = null;
+            return true;
+        }
+        
+        return false;
+    }
+
+    drawCoinsConfirmationDialog() {
+        if (!this.coinsConfirmationDialog || !this.coinsConfirmationDialog.visible) {
+            return;
+        }
+        
+        const centerX = CONFIG.CANVAS_WIDTH / 2;
+        const centerY = CONFIG.CANVAS_HEIGHT / 2;
+        const dialogWidth = 400;
+        const dialogHeight = 200;
+        const dialogX = centerX - dialogWidth / 2;
+        const dialogY = centerY - dialogHeight / 2;
+        
+        // Draw semi-transparent background overlay
+        this.ctx.save();
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
+        this.ctx.restore();
+        
+        // Draw dialog box
+        this.ctx.save();
+        this.ctx.fillStyle = '#1a1a1a';
+        this.ctx.strokeStyle = '#FFD700';
+        this.ctx.lineWidth = 3;
+        this.ctx.roundRect(dialogX, dialogY, dialogWidth, dialogHeight, 15);
+        this.ctx.fill();
+        this.ctx.stroke();
+        this.ctx.restore();
+        
+        // Draw title
+        this.ctx.save();
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.font = 'bold 24px monospace';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('Confirmation', centerX, dialogY + 40);
+        this.ctx.restore();
+        
+        // Draw message
+        this.ctx.save();
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.font = '18px monospace';
+        this.ctx.textAlign = 'center';
+        const message = `Are you sure you want to spend ${this.coinsConfirmationDialog.coinsCost} coins?`;
+        this.ctx.fillText(message, centerX, dialogY + 80);
+        this.ctx.restore();
+        
+        // Draw checkbox
+        const checkboxX = dialogX + 30;
+        const checkboxY = dialogY + 120;
+        const checkboxSize = 20;
+        
+        this.ctx.save();
+        this.ctx.strokeStyle = '#FFFFFF';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(checkboxX, checkboxY, checkboxSize, checkboxSize);
+        
+        if (this.coinsConfirmationDialog.checkbox) {
+            this.ctx.fillStyle = '#FFD700';
+            this.ctx.fillRect(checkboxX + 3, checkboxY + 3, checkboxSize - 6, checkboxSize - 6);
+            // Draw checkmark
+            this.ctx.strokeStyle = '#000000';
+            this.ctx.lineWidth = 3;
+            this.ctx.beginPath();
+            this.ctx.moveTo(checkboxX + 5, checkboxY + 10);
+            this.ctx.lineTo(checkboxX + 9, checkboxY + 14);
+            this.ctx.lineTo(checkboxX + 15, checkboxY + 6);
+            this.ctx.stroke();
+        }
+        this.ctx.restore();
+        
+        // Draw checkbox label
+        this.ctx.save();
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.font = '14px monospace';
+        this.ctx.textAlign = 'left';
+        this.ctx.fillText("Don't show this message again", checkboxX + checkboxSize + 10, checkboxY + 15);
+        this.ctx.restore();
+        
+        // Draw Yes button
+        const yesButtonX = centerX - 100;
+        const yesButtonY = dialogY + 150;
+        const yesButtonWidth = 80;
+        const yesButtonHeight = 30;
+        
+        this.ctx.save();
+        this.ctx.fillStyle = '#4CAF50';
+        this.ctx.strokeStyle = '#FFFFFF';
+        this.ctx.lineWidth = 2;
+        this.ctx.roundRect(yesButtonX, yesButtonY, yesButtonWidth, yesButtonHeight, 5);
+        this.ctx.fill();
+        this.ctx.stroke();
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.font = 'bold 16px monospace';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('YES', yesButtonX + yesButtonWidth / 2, yesButtonY + 20);
+        this.ctx.restore();
+        
+        // Draw No button
+        const noButtonX = centerX + 20;
+        const noButtonY = dialogY + 150;
+        const noButtonWidth = 80;
+        const noButtonHeight = 30;
+        
+        this.ctx.save();
+        this.ctx.fillStyle = '#F44336';
+        this.ctx.strokeStyle = '#FFFFFF';
+        this.ctx.lineWidth = 2;
+        this.ctx.roundRect(noButtonX, noButtonY, noButtonWidth, noButtonHeight, 5);
+        this.ctx.fill();
+        this.ctx.stroke();
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.font = 'bold 16px monospace';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('NO', noButtonX + noButtonWidth / 2, noButtonY + 20);
+        this.ctx.restore();
     }
 
     async loadCoinsFromFirebase() {
@@ -1457,6 +1656,23 @@ class Game {
             // Handle all complete screen touches
             if (e.touches && e.touches.length > 0) {
                 const touch = e.touches[0];
+                
+                // Get canvas coordinates
+                const rect = this.canvas.getBoundingClientRect();
+                const scaleX = this.canvas.width / rect.width;
+                const scaleY = this.canvas.height / rect.height;
+                const canvasX = (touch.clientX - rect.left) * scaleX;
+                const canvasY = (touch.clientY - rect.top) * scaleY;
+                
+                // Handle coins confirmation dialog touches first (if visible)
+                if (this.coinsConfirmationDialog && this.coinsConfirmationDialog.visible) {
+                    if (this.handleCoinsConfirmationClick(canvasX, canvasY)) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                    }
+                }
+                
                 if (checkAllCompleteButtonClick(touch.clientX, touch.clientY)) {
                     e.preventDefault();
                     e.stopPropagation();
@@ -1523,6 +1739,24 @@ class Game {
 
         // Also focus on click
         this.canvas.addEventListener('click', (e) => {
+            // Get canvas coordinates first
+            const rect = this.canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const scaleX = this.canvas.width / rect.width;
+            const scaleY = this.canvas.height / rect.height;
+            const canvasX = x * scaleX;
+            const canvasY = y * scaleY;
+            
+            // Handle coins confirmation dialog clicks first (if visible)
+            if (this.coinsConfirmationDialog && this.coinsConfirmationDialog.visible) {
+                if (this.handleCoinsConfirmationClick(canvasX, canvasY)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                }
+            }
+            
             // Handle all complete screen clicks
             if (checkAllCompleteButtonClick(e.clientX, e.clientY)) {
                 e.preventDefault();
@@ -1540,17 +1774,6 @@ class Game {
             this.focusCanvas();
             // Reset demo timer on any click
             this.resetDemoTimer();
-            
-            // Get click coordinates
-            const rect = this.canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            
-            // Scale coordinates to canvas coordinates
-            const scaleX = this.canvas.width / rect.width;
-            const scaleY = this.canvas.height / rect.height;
-            const canvasX = x * scaleX;
-            const canvasY = y * scaleY;
             
             // Handle auth button click
             if (this.state === GAME_STATE.AUTH_REQUIRED && this.authButtonBounds) {
@@ -1647,10 +1870,18 @@ class Game {
                 return;
             }
             
-            console.log('✅ Enough coins, calling startLevel...');
-            // Start game (async function, but we don't need to await it)
-            this.startLevel(false).catch(error => {
-                console.error('❌ Error starting level:', error);
+            console.log('✅ Enough coins, showing confirmation...');
+            // Show confirmation dialog before starting game
+            this.showCoinsSpendConfirmation(coinsCost).then(confirmed => {
+                if (confirmed) {
+                    console.log('✅ User confirmed, calling startLevel...');
+                    // Start game (async function, but we don't need to await it)
+                    this.startLevel(false).catch(error => {
+                        console.error('❌ Error starting level:', error);
+                    });
+                } else {
+                    console.log('❌ User cancelled coin spending');
+                }
             });
         } else if (this.state === GAME_STATE.LEVEL_COMPLETE) {
             this.nextLevel();
@@ -2536,21 +2767,21 @@ class Game {
         const scoreY = this.isMobile ? 80 : 80; // Score position (80px from top on mobile)
         const pointsY = this.isMobile ? 60 : 60; // Points position
         
-        // Show coins deduction message if recently shown (for 3 seconds)
+        // Show coins deduction message if recently shown (for 4 seconds)
         if (this.coinsDeductionMessage && this.coinsDeductionMessageTime) {
             const messageAge = Date.now() - this.coinsDeductionMessageTime;
-            if (messageAge < 3000) { // Show for 3 seconds
-                const alpha = 1 - (messageAge / 3000); // Fade out
+            if (messageAge < 4000) { // Show for 4 seconds
+                const alpha = 1 - (messageAge / 4000); // Fade out
                 this.ctx.save();
                 this.ctx.globalAlpha = alpha;
                 this.ctx.fillStyle = '#FFD700';
                 this.ctx.font = 'bold 20px monospace';
                 this.ctx.textAlign = 'center';
-                this.ctx.fillText(this.coinsDeductionMessage, CONFIG.CANVAS_WIDTH / 2, 50);
+                this.ctx.fillText(this.coinsDeductionMessage, CONFIG.CANVAS_WIDTH / 2, 250); // Moved down by 200px (from 50 to 250)
                 this.ctx.restore();
                 this.ctx.textAlign = 'left';
             } else {
-                // Clear message after 3 seconds
+                // Clear message after 4 seconds
                 this.coinsDeductionMessage = null;
                 this.coinsDeductionMessageTime = 0;
             }
@@ -3000,6 +3231,8 @@ class Game {
 
         if (this.state === GAME_STATE.MENU) {
             this.drawMenu();
+            // Draw confirmation dialog if visible (on top of menu)
+            this.drawCoinsConfirmationDialog();
         } else if (this.state === GAME_STATE.PLAYING) {
             this.drawBackground();
             this.drawGround();
