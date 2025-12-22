@@ -844,9 +844,44 @@ class Game {
                 }
             }
             
+            // Try to get user ID from URL parameters (if passed by bot)
+            if (!this.userId) {
+                const urlParams = new URLSearchParams(window.location.search);
+                const userIdParam = urlParams.get('user_id') || urlParams.get('userId') || urlParams.get('uid');
+                if (userIdParam) {
+                    this.userId = parseInt(userIdParam, 10);
+                    console.log('✅ Telegram User ID (from URL param):', this.userId);
+                    this.loadCoinsFromFirebase();
+                }
+            }
+            
+            // Also check hash parameters
+            if (!this.userId && window.location.hash) {
+                const hashParams = new URLSearchParams(window.location.hash.substring(1));
+                const userIdParam = hashParams.get('user_id') || hashParams.get('userId') || hashParams.get('uid');
+                if (userIdParam) {
+                    this.userId = parseInt(userIdParam, 10);
+                    console.log('✅ Telegram User ID (from hash param):', this.userId);
+                    this.loadCoinsFromFirebase();
+                }
+            }
+            
             if (!this.userId) {
                 console.error('❌ Could not get Telegram User ID!');
-                console.log('Available Telegram WebApp properties:', Object.keys(window.Telegram.WebApp));
+                console.log('Available Telegram WebApp properties:', window.Telegram && window.Telegram.WebApp ? Object.keys(window.Telegram.WebApp) : 'Telegram WebApp not available');
+                console.log('Current URL:', window.location.href);
+                console.log('URL params:', window.location.search);
+                console.log('Hash:', window.location.hash);
+                
+                // For testing: allow manual user ID input via localStorage
+                const testUserId = localStorage.getItem('test_user_id');
+                if (testUserId) {
+                    this.userId = parseInt(testUserId, 10);
+                    console.log('✅ Using test User ID from localStorage:', this.userId);
+                    this.loadCoinsFromFirebase();
+                } else {
+                    console.log('💡 Tip: Set localStorage.setItem("test_user_id", "291987661") to test with a specific user ID');
+                }
             }
             
             // Use theme colors if available
