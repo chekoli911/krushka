@@ -539,6 +539,12 @@ class Game {
         // Points system
         this.points = POINTS_MANAGER.getPoints();
         
+        // Firebase and Telegram integration
+        this.userId = null;
+        this.coins = 0;
+        this.firebaseInitialized = false;
+        this.initFirebase();
+        
         // Wheel of Fortune
         this.wheelSquares = [];
         this.wheelSpinning = false;
@@ -565,8 +571,11 @@ class Game {
         this.initWheelOfFortune();
         
         this.setupCanvas();
-        this.setupTelegram();
         this.setupControls();
+        // Setup Telegram after a short delay to ensure Firebase is initialized
+        setTimeout(() => {
+            this.setupTelegram();
+        }, 100);
         this.loadBackgroundImages();
         this.start();
         
@@ -673,10 +682,106 @@ class Game {
         });
     }
 
+    initFirebase() {
+        try {
+            // Wait for Firebase to be available
+            if (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length === 0) {
+                const firebaseConfig = {
+                    databaseURL: "https://aggame-fe195-default-rtdb.firebaseio.com/"
+                };
+                firebase.initializeApp(firebaseConfig);
+                this.firebaseInitialized = true;
+                console.log('Firebase initialized');
+            } else if (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0) {
+                // Firebase already initialized
+                this.firebaseInitialized = true;
+                console.log('Firebase already initialized');
+            } else {
+                console.warn('Firebase SDK not loaded yet, will retry');
+                // Retry after a delay
+                setTimeout(() => {
+                    this.initFirebase();
+                }, 500);
+            }
+        } catch (error) {
+            console.error('Error initializing Firebase:', error);
+            // Retry after a delay
+            setTimeout(() => {
+                this.initFirebase();
+            }, 1000);
+        }
+    }
+
+    async loadCoinsFromFirebase() {
+        if (!this.firebaseInitialized || !this.userId) {
+            console.log('Firebase not initialized or no user ID');
+            return;
+        }
+        
+        try {
+            const database = firebase.database();
+            const userRef = database.ref(`users/${this.userId}`);
+            
+            // Listen for changes in real-time
+            userRef.on('value', (snapshot) => {
+                const userData = snapshot.val();
+                if (userData && userData.coins !== undefined) {
+                    this.coins = parseInt(userData.coins, 10) || 0;
+                    console.log(`Loaded coins for user ${this.userId}: ${this.coins}`);
+                } else {
+                    this.coins = 0;
+                    console.log(`No coins data for user ${this.userId}, setting to 0`);
+                }
+            }, (error) => {
+                console.error('Error loading coins from Firebase:', error);
+                this.coins = 0;
+            });
+        } catch (error) {
+            console.error('Error in loadCoinsFromFirebase:', error);
+            this.coins = 0;
+        }
+    }
+
     setupTelegram() {
         if (window.Telegram && window.Telegram.WebApp) {
             window.Telegram.WebApp.ready();
             window.Telegram.WebApp.expand();
+            
+            // Get user ID from Telegram WebApp
+            const initData = window.Telegram.WebApp.initData;
+            if (initData) {
+                try {
+                    // Parse initData to get user ID
+                    const params = new URLSearchParams(initData);
+                    const userParam = params.get('user');
+                    if (userParam) {
+                        const user = JSON.parse(decodeURIComponent(userParam));
+                        this.userId = user.id;
+                        console.log('Telegram User ID:', this.userId);
+                        
+                        // Load coins from Firebase
+                        if (this.firebaseInitialized) {
+                            this.loadCoinsFromFirebase();
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error parsing Telegram initData:', error);
+                }
+            }
+            
+            // Alternative method: try to get user from WebApp
+            if (!this.userId && window.Telegram.WebApp.initDataUnsafe) {
+                const user = window.Telegram.WebApp.initDataUnsafe.user;
+                if (user && user.id) {
+                    this.userId = user.id;
+                    console.log('Telegram User ID (from initDataUnsafe):', this.userId);
+                    
+                    // Load coins from Firebase
+                    if (this.firebaseInitialized) {
+                        this.loadCoinsFromFirebase();
+                    }
+                }
+            }
             
             // Use theme colors if available
             const theme = window.Telegram.WebApp.themeParams;
@@ -1124,6 +1229,13 @@ class Game {
             // Stop demo mode on click/tap
             this.stopDemo();
         } else if (this.state === GAME_STATE.MENU) {
+            // Check if user has coins
+            if (this.coins === 0) {
+                // Show message that game cannot start without coins
+                console.log('Game cannot start: user has 0 coins');
+                // You can add a visual message here if needed
+                return;
+            }
             this.startLevel(false); // Normal mode
         } else if (this.state === GAME_STATE.LEVEL_COMPLETE) {
             this.nextLevel();
@@ -2130,6 +2242,14 @@ class Game {
         const pointsX = canvasWidth - pointsWidth - edgeOffset + 25; // Moved right by 25px
         this.ctx.fillStyle = '#FFD700'; // Gold color for points
         this.ctx.fillText(pointsText, pointsX, 100); // Moved from 80 to 100 (20px lower)
+        
+        // Coins display under Points
+        const coinsText = `Coins: ${this.coins || 0}`;
+        const coinsWidth = this.ctx.measureText(coinsText).width;
+        const coinsX = canvasWidth - coinsWidth - edgeOffset + 25; // Same X position as Points
+        this.ctx.fillStyle = '#00FF00'; // Green color for coins
+        this.ctx.fillText(coinsText, coinsX, 125); // 25px below Points (100 + 25)
+        
         this.ctx.fillStyle = '#FFFFFF'; // Reset to white
 
         // Start button with border (smaller for vertical)
@@ -2138,13 +2258,31 @@ class Game {
         const startY = canvasHeight / 2 + 50;
         
         // START GAME button
+        const btnX = canvasWidth / 2 - btnWidth / 2;
         this.ctx.fillStyle = '#000000';
-        this.ctx.fillRect(canvasWidth / 2 - btnWidth / 2 - 5, startY, btnWidth + 10, btnHeight + 10);
-        this.ctx.fillStyle = '#27AE60';
-        this.ctx.fillRect(canvasWidth / 2 - btnWidth / 2, startY + 5, btnWidth, btnHeight);
-        this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.font = 'bold 18px monospace';
-        this.ctx.fillText('START GAME', canvasWidth / 2, startY + 30);
+        this.ctx.fillRect(btnX - 5, startY, btnWidth + 10, btnHeight + 10);
+        
+        // Check if user has coins
+        if (this.coins === 0) {
+            // Disabled button style (gray)
+            this.ctx.fillStyle = '#7F8C8D';
+            this.ctx.fillRect(btnX, startY + 5, btnWidth, btnHeight);
+            this.ctx.fillStyle = '#FFFFFF';
+            this.ctx.font = 'bold 18px monospace';
+            this.ctx.fillText('NO COINS', canvasWidth / 2, startY + 30);
+            
+            // Show message below button
+            this.ctx.font = '14px monospace';
+            this.ctx.fillStyle = '#FF6B6B';
+            this.ctx.fillText('You need coins to play!', canvasWidth / 2, startY + btnHeight + 25);
+        } else {
+            // Normal button style (green)
+            this.ctx.fillStyle = '#27AE60';
+            this.ctx.fillRect(btnX, startY + 5, btnWidth, btnHeight);
+            this.ctx.fillStyle = '#FFFFFF';
+            this.ctx.font = 'bold 18px monospace';
+            this.ctx.fillText('START GAME', canvasWidth / 2, startY + 30);
+        }
         
         // Show "From the creators of arenapsgm.ru 2026" text
             this.ctx.font = '12px monospace';
@@ -2483,8 +2621,7 @@ class Game {
         const centerFrameSize = WHEEL_CONFIG.SQUARE_WIDTH + 10;
         const centerFrameX = centerX - centerFrameSize / 2;
         const centerFrameY = wheelY - 5;
-        // Very large corner radius for smooth, fully rounded corners (almost capsule-like)
-        const cornerRadius = 50;
+        const cornerRadius = 20;
         
         // Create animated gradient for frame (rainbow effect)
         const time = Date.now() * 0.001;
