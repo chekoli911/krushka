@@ -728,6 +728,84 @@ class Game {
         }
     }
 
+    async spendCoinsInFirebase(amount) {
+        if (!this.userId || !amount || amount <= 0) {
+            console.log('❌ Cannot spend coins: invalid user ID or amount');
+            return false;
+        }
+        
+        if (this.coins < amount) {
+            console.log(`❌ Not enough coins: have ${this.coins}, need ${amount}`);
+            return false;
+        }
+        
+        console.log(`💰 Spending ${amount} coins for user ${this.userId}...`);
+        console.log(`💰 Current coins: ${this.coins}`);
+        
+        const newCoins = this.coins - amount;
+        
+        try {
+            // Try API server first (if available)
+            const apiServerUrl = 'http://localhost:5000/api/coins/' + this.userId;
+            try {
+                const response = await fetch(apiServerUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({ action: 'spend', amount: amount })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    this.coins = parseInt(data.coins, 10) || 0;
+                    console.log(`✅ Spent ${amount} coins via API server. Remaining: ${this.coins}`);
+                    return true;
+                } else {
+                    console.log(`⚠️ API server returned ${response.status}, trying direct Firebase...`);
+                }
+            } catch (apiError) {
+                console.log('⚠️ API server not available, trying direct Firebase...');
+            }
+            
+            // Fallback: Use Firebase REST API directly (PUT method)
+            const firebaseUrl = `https://aggame-fe195-default-rtdb.firebaseio.com/users/${this.userId}/coins.json`;
+            
+            console.log(`📡 Updating coins via Firebase REST API: ${firebaseUrl}`);
+            console.log(`📤 New coins value: ${newCoins}`);
+            
+            const response = await fetch(firebaseUrl, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(newCoins)
+            });
+            
+            console.log(`📥 Response status: ${response.status} ${response.statusText}`);
+            
+            if (response.ok) {
+                this.coins = newCoins;
+                console.log(`✅ Spent ${amount} coins via Firebase REST API. Remaining: ${this.coins}`);
+                return true;
+            } else {
+                const errorText = await response.text();
+                console.error(`❌ Error spending coins: ${response.status}`);
+                console.error(`Error response:`, errorText);
+                
+                if (response.status === 401 || response.status === 403) {
+                    console.error('❌ Access denied by Firebase rules. Check that rules allow writing to users/{uid}/coins');
+                }
+                return false;
+            }
+        } catch (error) {
+            console.error('❌ Error in spendCoinsInFirebase:', error);
+            console.error('Error details:', error.message, error.stack);
+            return false;
+        }
+    }
+
     async loadCoinsFromFirebase() {
         if (!this.userId) {
             console.log('❌ No user ID available for loading coins');
@@ -1868,22 +1946,21 @@ class Game {
                 return; // Don't start the game
             }
             
-            // Spend coins (try, but don't block game start if it fails)
-            try {
-                const success = await this.spendCoinsInFirebase(coinsCost);
-                if (success) {
-                    // Show message about coins deduction
-                    console.log(`💰 Spent ${coinsCost} coins. Remaining: ${this.coins}`);
-                    this.coinsDeductionMessage = `-${coinsCost} coins (Remaining: ${this.coins})`;
-                    this.coinsDeductionMessageTime = Date.now();
-                } else {
-                    console.warn('⚠️ Failed to spend coins, but starting game anyway');
-                    // Still start the game even if spending failed
-                }
-            } catch (error) {
-                console.error('Error spending coins:', error);
-                // Still start the game even if spending failed
+            // Spend coins - MUST succeed before starting game
+            console.log(`💳 Attempting to spend ${coinsCost} coins...`);
+            const success = await this.spendCoinsInFirebase(coinsCost);
+            
+            if (!success) {
+                console.error('❌ Failed to spend coins, game NOT started');
+                // Show error message to user
+                alert(`Failed to process payment. Please check your connection and try again.`);
+                return; // Don't start the game if coins weren't spent
             }
+            
+            // Show message about coins deduction
+            console.log(`✅ Successfully spent ${coinsCost} coins. Remaining: ${this.coins}`);
+            this.coinsDeductionMessage = `-${coinsCost} coins (Remaining: ${this.coins})`;
+            this.coinsDeductionMessageTime = Date.now();
         }
         
         // Start the game (always execute this)
