@@ -906,21 +906,41 @@ class Game {
             }
             
             // Alternative method: try to get user from WebApp (most reliable)
+            // This is the PRIMARY method - initDataUnsafe is always available in Telegram WebApp
             if (!this.userId && window.Telegram.WebApp.initDataUnsafe) {
+                console.log('🔍 Checking initDataUnsafe...');
+                console.log('📋 Full initDataUnsafe object:', JSON.stringify(window.Telegram.WebApp.initDataUnsafe, null, 2));
+                
                 const user = window.Telegram.WebApp.initDataUnsafe.user;
-                console.log('initDataUnsafe.user:', user);
-                if (user && user.id) {
-                        this.userId = user.id;
-                        console.log('✅ Telegram User ID (from initDataUnsafe):', this.userId);
-                        
-                        // Load coins from Firebase immediately
-                        this.loadCoinsFromFirebase();
-                        
-                        // Switch to menu if we were on auth screen
-                        if (this.state === GAME_STATE.AUTH_REQUIRED) {
-                            this.state = GAME_STATE.MENU;
-                        }
+                console.log('👤 User object from initDataUnsafe:', user);
+                
+                if (user) {
+                    console.log('📋 User object keys:', Object.keys(user));
+                    console.log('📋 User ID:', user.id);
+                    console.log('📋 User first_name:', user.first_name);
+                    console.log('📋 User username:', user.username);
                 }
+                
+                if (user && user.id) {
+                    this.userId = user.id;
+                    console.log('✅✅✅ Telegram User ID (from initDataUnsafe):', this.userId);
+                    console.log('✅ User name:', user.first_name || 'Unknown');
+                    console.log('✅ User username:', user.username || 'Unknown');
+                    
+                    // Load coins from Firebase immediately
+                    this.loadCoinsFromFirebase();
+                    
+                    // Switch to menu if we were on auth screen
+                    if (this.state === GAME_STATE.AUTH_REQUIRED) {
+                        this.state = GAME_STATE.MENU;
+                        console.log('✅ Switched from AUTH_REQUIRED to MENU');
+                    }
+                } else {
+                    console.warn('⚠️ initDataUnsafe.user exists but has no ID!');
+                    console.warn('⚠️ User object:', user);
+                }
+            } else if (!this.userId) {
+                console.warn('⚠️ initDataUnsafe is not available!');
             }
             
             // If still no user ID, try to get from query parameters
