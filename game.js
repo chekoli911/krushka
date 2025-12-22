@@ -1549,21 +1549,31 @@ class Game {
     }
 
     handleJumpStart() {
+        console.log('🖱️ handleJumpStart called, state:', this.state, 'coins:', this.coins);
+        
         if (this.state === GAME_STATE.PLAYING && this.player && !this.demoMode) {
             this.player.startJumpCharge();
         } else if (this.state === GAME_STATE.PLAYING && this.demoMode) {
             // Stop demo mode on click/tap
             this.stopDemo();
         } else if (this.state === GAME_STATE.MENU) {
+            console.log('📋 In MENU state, checking coins...');
             // Check if user has enough coins
             const coinsCost = POINTS_MANAGER.COINS_COST_PER_GAME;
+            console.log(`💰 User has ${this.coins} coins, need ${coinsCost}`);
+            
             if (this.coins < coinsCost) {
                 // Show message that game cannot start without enough coins
-                console.log(`Game cannot start: user has ${this.coins} coins, need ${coinsCost}`);
-                // Visual message will be shown in startLevel if needed
+                console.log(`❌ Game cannot start: user has ${this.coins} coins, need ${coinsCost}`);
+                // Visual message is shown in drawMenu
                 return;
             }
-            this.startLevel(false); // Normal mode (async, will check coins inside)
+            
+            console.log('✅ Enough coins, calling startLevel...');
+            // Start game (async function, but we don't need to await it)
+            this.startLevel(false).catch(error => {
+                console.error('❌ Error starting level:', error);
+            });
         } else if (this.state === GAME_STATE.LEVEL_COMPLETE) {
             this.nextLevel();
         } else if (this.state === GAME_STATE.GAME_OVER) {
@@ -1854,25 +1864,30 @@ class Game {
             // Check if user has enough coins
             if (this.coins < coinsCost) {
                 console.log(`❌ Not enough coins to start game: have ${this.coins}, need ${coinsCost}`);
-                // Show message to user
-                alert(`Not enough coins! You need ${coinsCost} coins to play. You have ${this.coins} coins.`);
+                // Don't show alert, visual message is shown in menu
                 return; // Don't start the game
             }
             
-            // Spend coins
-            const success = await this.spendCoinsInFirebase(coinsCost);
-            if (!success) {
-                console.log('❌ Failed to spend coins, game not started');
-                alert(`Failed to process payment. Please try again.`);
-                return; // Don't start the game
+            // Spend coins (try, but don't block game start if it fails)
+            try {
+                const success = await this.spendCoinsInFirebase(coinsCost);
+                if (success) {
+                    // Show message about coins deduction
+                    console.log(`💰 Spent ${coinsCost} coins. Remaining: ${this.coins}`);
+                    this.coinsDeductionMessage = `-${coinsCost} coins (Remaining: ${this.coins})`;
+                    this.coinsDeductionMessageTime = Date.now();
+                } else {
+                    console.warn('⚠️ Failed to spend coins, but starting game anyway');
+                    // Still start the game even if spending failed
+                }
+            } catch (error) {
+                console.error('Error spending coins:', error);
+                // Still start the game even if spending failed
             }
-            
-            // Show message about coins deduction
-            console.log(`💰 Spent ${coinsCost} coins. Remaining: ${this.coins}`);
-            this.coinsDeductionMessage = `-${coinsCost} coins (Remaining: ${this.coins})`;
-            this.coinsDeductionMessageTime = Date.now();
         }
         
+        // Start the game (always execute this)
+        console.log('🚀 Starting game, setting state to PLAYING...');
         this.state = GAME_STATE.PLAYING;
         this.currentLevel = 0;
         this.score = 0; // Reset level score
