@@ -234,7 +234,7 @@ const WHEEL_CONFIG = {
     SQUARE_WIDTH: 200, // Increased by 50px (was 150)
     SQUARE_HEIGHT: 200, // Increased by 50px (was 150)
     SQUARE_SPACING: 20, // Space between cards
-    SPIN_DURATION: 10000, // 10 seconds for slower, smoother animation (doubled)
+    SPIN_DURATION: 20000, // 20 seconds for slower, smoother animation (doubled again)
     PRIZE_DELAY: 3000, // 3 seconds delay before showing prize image (pause after spin stops)
     PRIZE_FADE_DURATION: 1000, // 1 second for prize image fade-in
     PRIZE_SCALE_DURATION: 1500, // 1.5 seconds for smooth scale animation from 200 to 290
@@ -561,7 +561,7 @@ class Game {
         this.allCompletePlayAgainButtonBounds = null; // Button bounds for ALL_COMPLETE screen
         this.arenapsgmLinkBounds = null; // Link bounds for arenapsgm.ru link in menu
         this.allCompletePrizeScrollOffset = 0; // Scroll offset for prize cards animation on ALL_COMPLETE screen
-        this.allCompletePrizeScrollSpeed = 0.5; // Speed of prize cards scrolling (pixels per frame)
+        this.allCompletePrizeScrollSpeed = 1.0; // Speed of prize cards scrolling (pixels per frame) - doubled for faster animation
         this.initWheelOfFortune();
         
         this.setupCanvas();
