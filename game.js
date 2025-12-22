@@ -2483,7 +2483,7 @@ class Game {
         const centerFrameSize = WHEEL_CONFIG.SQUARE_WIDTH + 10;
         const centerFrameX = centerX - centerFrameSize / 2;
         const centerFrameY = wheelY - 5;
-        const cornerRadius = 20;
+        const cornerRadius = 30; // Increased for more rounded corners
         
         // Create animated gradient for frame (rainbow effect)
         const time = Date.now() * 0.001;
@@ -2512,7 +2512,7 @@ class Game {
         this.ctx.roundRect(centerFrameX, centerFrameY, centerFrameSize, centerFrameSize, cornerRadius);
         this.ctx.stroke();
         
-        // Draw inner highlight
+        // Draw inner highlight with rounded corners
         this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
         this.ctx.lineWidth = 2;
         this.ctx.beginPath();
@@ -2521,21 +2521,38 @@ class Game {
         
         this.ctx.restore();
         
-        // Draw modern corner accents
+        // Draw modern rounded corner accents (with rounded corners)
         const accentSize = 15;
+        const accentRadius = 5; // Rounded corners for accents
         this.ctx.fillStyle = gradient;
         // Top-left corner
-        this.ctx.fillRect(centerFrameX, centerFrameY, accentSize, 4);
-        this.ctx.fillRect(centerFrameX, centerFrameY, 4, accentSize);
+        this.ctx.beginPath();
+        this.ctx.roundRect(centerFrameX, centerFrameY, accentSize, 4, accentRadius);
+        this.ctx.fill();
+        this.ctx.beginPath();
+        this.ctx.roundRect(centerFrameX, centerFrameY, 4, accentSize, accentRadius);
+        this.ctx.fill();
         // Top-right corner
-        this.ctx.fillRect(centerFrameX + centerFrameSize - accentSize, centerFrameY, accentSize, 4);
-        this.ctx.fillRect(centerFrameX + centerFrameSize - 4, centerFrameY, 4, accentSize);
+        this.ctx.beginPath();
+        this.ctx.roundRect(centerFrameX + centerFrameSize - accentSize, centerFrameY, accentSize, 4, accentRadius);
+        this.ctx.fill();
+        this.ctx.beginPath();
+        this.ctx.roundRect(centerFrameX + centerFrameSize - 4, centerFrameY, 4, accentSize, accentRadius);
+        this.ctx.fill();
         // Bottom-left corner
-        this.ctx.fillRect(centerFrameX, centerFrameY + centerFrameSize - 4, accentSize, 4);
-        this.ctx.fillRect(centerFrameX, centerFrameY + centerFrameSize - accentSize, 4, accentSize);
+        this.ctx.beginPath();
+        this.ctx.roundRect(centerFrameX, centerFrameY + centerFrameSize - 4, accentSize, 4, accentRadius);
+        this.ctx.fill();
+        this.ctx.beginPath();
+        this.ctx.roundRect(centerFrameX, centerFrameY + centerFrameSize - accentSize, 4, accentSize, accentRadius);
+        this.ctx.fill();
         // Bottom-right corner
-        this.ctx.fillRect(centerFrameX + centerFrameSize - accentSize, centerFrameY + centerFrameSize - 4, accentSize, 4);
-        this.ctx.fillRect(centerFrameX + centerFrameSize - 4, centerFrameY + centerFrameSize - accentSize, 4, accentSize);
+        this.ctx.beginPath();
+        this.ctx.roundRect(centerFrameX + centerFrameSize - accentSize, centerFrameY + centerFrameSize - 4, accentSize, 4, accentRadius);
+        this.ctx.fill();
+        this.ctx.beginPath();
+        this.ctx.roundRect(centerFrameX + centerFrameSize - 4, centerFrameY + centerFrameSize - accentSize, 4, accentSize, accentRadius);
+        this.ctx.fill();
         
         // Draw squares with wrap-around for infinite scroll
         // Draw multiple copies to ensure seamless scrolling
