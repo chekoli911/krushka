@@ -183,7 +183,8 @@ const GAME_STATE = {
     LEVEL_COMPLETE: 'levelComplete',
     GAME_OVER: 'gameOver',
     ALL_COMPLETE: 'allComplete',
-    WHEEL_OF_FORTUNE: 'wheelOfFortune'
+    WHEEL_OF_FORTUNE: 'wheelOfFortune',
+    AUTH_REQUIRED: 'authRequired'
 };
 
 // ==================== POINTS SYSTEM ====================
@@ -544,6 +545,7 @@ class Game {
         this.coins = 0;
         this.firebaseInitialized = false;
         this.coinsPollInterval = null; // Interval for polling coins from API
+        this.authButtonBounds = null; // Button bounds for auth screen
         this.initFirebase();
         
         // Wheel of Fortune
@@ -575,6 +577,18 @@ class Game {
         this.setupControls();
         // Setup Telegram immediately (doesn't need Firebase SDK for REST API)
         this.setupTelegram();
+        
+        // Set initial state based on whether we have user ID
+        // Wait a bit for setupTelegram to complete
+        setTimeout(() => {
+            if (!this.userId) {
+                this.state = GAME_STATE.AUTH_REQUIRED;
+                console.log('⚠️ No User ID found, showing auth screen');
+            } else {
+                this.state = GAME_STATE.MENU;
+                console.log('✅ User ID found, showing menu');
+            }
+        }, 500);
         this.loadBackgroundImages();
         this.start();
         
@@ -741,6 +755,12 @@ class Game {
                 this.coins = coins !== null && coins !== undefined ? parseInt(coins, 10) || 0 : 0;
                 console.log(`✅ Loaded coins for user ${this.userId}: ${this.coins}`);
                 
+                // Switch to menu if we were on auth screen
+                if (this.state === GAME_STATE.AUTH_REQUIRED) {
+                    this.state = GAME_STATE.MENU;
+                    console.log('✅ Switched to menu after loading coins');
+                }
+                
                 // Set up polling to update coins periodically
                 if (!this.coinsPollInterval) {
                     this.coinsPollInterval = setInterval(() => {
@@ -790,14 +810,37 @@ class Game {
     }
 
     setupTelegram() {
-        console.log('Setting up Telegram WebApp...');
-        if (window.Telegram && window.Telegram.WebApp) {
+        console.log('🔍 Checking Telegram WebApp environment...');
+        console.log('📍 Current URL:', window.location.href);
+        console.log('📍 User Agent:', navigator.userAgent);
+        
+        // Check if Telegram WebApp is available
+        const hasTelegram = typeof window.Telegram !== 'undefined';
+        const hasWebApp = hasTelegram && typeof window.Telegram.WebApp !== 'undefined';
+        
+        console.log('📱 Telegram object exists:', hasTelegram);
+        console.log('📱 Telegram.WebApp exists:', hasWebApp);
+        
+        if (hasTelegram && hasWebApp) {
             window.Telegram.WebApp.ready();
             window.Telegram.WebApp.expand();
             
-            console.log('Telegram WebApp available');
-            console.log('initData:', window.Telegram.WebApp.initData);
-            console.log('initDataUnsafe:', window.Telegram.WebApp.initDataUnsafe);
+            console.log('✅ Telegram WebApp is AVAILABLE');
+            console.log('📋 WebApp version:', window.Telegram.WebApp.version);
+            console.log('📋 WebApp platform:', window.Telegram.WebApp.platform);
+            console.log('📋 initData:', window.Telegram.WebApp.initData);
+            console.log('📋 initDataUnsafe:', window.Telegram.WebApp.initDataUnsafe);
+            
+            // Check all available properties
+            console.log('📋 All WebApp properties:', Object.keys(window.Telegram.WebApp));
+            
+            // Check if we're in Telegram
+            const isInTelegram = window.Telegram.WebApp.platform !== 'unknown';
+            console.log('📱 Running inside Telegram:', isInTelegram);
+            
+            if (!isInTelegram) {
+                console.warn('⚠️ WARNING: WebApp platform is "unknown" - might not be running in Telegram!');
+            }
             
             // Get user ID from Telegram WebApp
             const initData = window.Telegram.WebApp.initData;
@@ -825,11 +868,16 @@ class Game {
                 const user = window.Telegram.WebApp.initDataUnsafe.user;
                 console.log('initDataUnsafe.user:', user);
                 if (user && user.id) {
-                    this.userId = user.id;
-                    console.log('✅ Telegram User ID (from initDataUnsafe):', this.userId);
-                    
-                    // Load coins from Firebase immediately
-                    this.loadCoinsFromFirebase();
+                        this.userId = user.id;
+                        console.log('✅ Telegram User ID (from initDataUnsafe):', this.userId);
+                        
+                        // Load coins from Firebase immediately
+                        this.loadCoinsFromFirebase();
+                        
+                        // Switch to menu if we were on auth screen
+                        if (this.state === GAME_STATE.AUTH_REQUIRED) {
+                            this.state = GAME_STATE.MENU;
+                        }
                 }
             }
             
@@ -886,12 +934,109 @@ class Game {
             
             // Use theme colors if available
             const theme = window.Telegram.WebApp.themeParams;
-            if (theme.bg_color) {
+            if (theme && theme.bg_color) {
                 document.body.style.background = theme.bg_color;
             }
         } else {
-            console.warn('Telegram WebApp not available - running outside Telegram?');
+            console.warn('⚠️ Telegram WebApp NOT AVAILABLE');
+            console.warn('This means the game is NOT running inside Telegram!');
+            console.warn('To run in Telegram:');
+            console.warn('1. Open your bot in Telegram');
+            console.warn('2. Send /start command');
+            console.warn('3. Click the "Play Game" button');
+            console.warn('4. The game should open as a Telegram WebApp');
+            
+            // Still try to get user ID from URL for testing
+            const urlParams = new URLSearchParams(window.location.search);
+            const hashParams = new URLSearchParams(window.location.hash.substring(1));
+            const userIdParam = urlParams.get('user_id') || hashParams.get('user_id') || 
+                              urlParams.get('userId') || hashParams.get('userId') ||
+                              urlParams.get('uid') || hashParams.get('uid');
+            
+            if (userIdParam) {
+                this.userId = parseInt(userIdParam, 10);
+                console.log('✅ Got User ID from URL (testing mode):', this.userId);
+                this.loadCoinsFromFirebase();
+            } else {
+                // For testing: allow manual user ID input via localStorage
+                const testUserId = localStorage.getItem('test_user_id');
+                if (testUserId) {
+                    this.userId = parseInt(testUserId, 10);
+                    console.log('✅ Using test User ID from localStorage:', this.userId);
+                    this.loadCoinsFromFirebase();
+                    // Switch to menu if we were on auth screen
+                    if (this.state === GAME_STATE.AUTH_REQUIRED) {
+                        this.state = GAME_STATE.MENU;
+                    }
+                } else {
+                    console.log('💡 Tip: Set localStorage.setItem("test_user_id", "291987661") to test with a specific user ID');
+                    // If no user ID and no test ID, show auth screen
+                    if (!this.userId && this.state !== GAME_STATE.AUTH_REQUIRED) {
+                        this.state = GAME_STATE.AUTH_REQUIRED;
+                    }
+                }
+            }
         }
+    }
+    
+    drawAuthRequired() {
+        // Draw background
+        this.drawBackground();
+        this.drawGround();
+        
+        const canvasWidth = CONFIG.CANVAS_WIDTH || this.canvas.width || 800;
+        const canvasHeight = CONFIG.CANVAS_HEIGHT || this.canvas.height || 450;
+        
+        // Dark overlay
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+        
+        // Title
+        this.ctx.textAlign = 'center';
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.font = 'bold 32px monospace';
+        this.ctx.fillText('Authorization Required', canvasWidth / 2, canvasHeight / 2 - 120);
+        
+        // Description
+        this.ctx.font = '18px monospace';
+        this.ctx.fillStyle = '#CCCCCC';
+        this.ctx.fillText('Please authorize through Telegram', canvasWidth / 2, canvasHeight / 2 - 80);
+        this.ctx.fillText('to access your coins and play the game', canvasWidth / 2, canvasHeight / 2 - 50);
+        
+        // Authorize button
+        const btnWidth = 280;
+        const btnHeight = 55;
+        const btnX = canvasWidth / 2 - btnWidth / 2;
+        const btnY = canvasHeight / 2;
+        
+        // Button shadow
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        this.ctx.fillRect(btnX + 5, btnY + 5, btnWidth, btnHeight);
+        
+        // Button background
+        this.ctx.fillStyle = '#0088CC'; // Telegram blue
+        this.ctx.fillRect(btnX, btnY, btnWidth, btnHeight);
+        
+        // Button border
+        this.ctx.strokeStyle = '#FFFFFF';
+        this.ctx.lineWidth = 3;
+        this.ctx.strokeRect(btnX, btnY, btnWidth, btnHeight);
+        
+        // Button text
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.font = 'bold 20px monospace';
+        this.ctx.fillText('🔐 Authorize via Telegram', canvasWidth / 2, btnY + 35);
+        
+        // Store button bounds for click detection
+        this.authButtonBounds = { x: btnX, y: btnY, width: btnWidth, height: btnHeight };
+        
+        // Alternative: Manual user ID input for testing
+        this.ctx.font = '14px monospace';
+        this.ctx.fillStyle = '#888888';
+        this.ctx.fillText('Or enter test User ID in console:', canvasWidth / 2, btnY + btnHeight + 40);
+        this.ctx.fillText('localStorage.setItem("test_user_id", "YOUR_ID")', canvasWidth / 2, btnY + btnHeight + 60);
+        
+        this.ctx.textAlign = 'left';
     }
 
     setupControls() {
@@ -1263,6 +1408,19 @@ class Game {
             const scaleY = this.canvas.height / rect.height;
             const canvasX = x * scaleX;
             const canvasY = y * scaleY;
+            
+            // Handle auth button click
+            if (this.state === GAME_STATE.AUTH_REQUIRED && this.authButtonBounds) {
+                const btn = this.authButtonBounds;
+                if (canvasX >= btn.x && canvasX <= btn.x + btn.width &&
+                    canvasY >= btn.y && canvasY <= btn.y + btn.height) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Open bot in Telegram
+                    window.open('https://t.me/Akruskabot?start=game', '_blank');
+                    return;
+                }
+            }
             
             // Handle arenapsgm.ru link click on menu
             if (this.state === GAME_STATE.MENU && this.arenapsgmLinkBounds) {
@@ -2668,9 +2826,15 @@ class Game {
             this.drawGameOver();
         } else if (this.state === GAME_STATE.ALL_COMPLETE) {
             this.drawAllComplete();
-            } else if (this.state === GAME_STATE.WHEEL_OF_FORTUNE) {
-                this.drawWheelOfFortune();
-            }
+        } else if (this.state === GAME_STATE.WHEEL_OF_FORTUNE) {
+            this.drawWheelOfFortune();
+        } else if (this.state === GAME_STATE.AUTH_REQUIRED) {
+            this.drawAuthRequired();
+        } else if (this.state === null) {
+            // Initial loading state - draw nothing or loading screen
+            this.ctx.fillStyle = '#000000';
+            this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH || 800, CONFIG.CANVAS_HEIGHT || 450);
+        }
         } catch (error) {
             console.error('Error in draw():', error);
             // Draw error message
