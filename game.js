@@ -543,6 +543,7 @@ class Game {
         this.userId = null;
         this.coins = 0;
         this.firebaseInitialized = false;
+        this.coinsPollInterval = null; // Interval for polling coins from API
         this.initFirebase();
         
         // Wheel of Fortune
@@ -713,32 +714,53 @@ class Game {
     }
 
     async loadCoinsFromFirebase() {
-        if (!this.firebaseInitialized || !this.userId) {
-            console.log('Firebase not initialized or no user ID');
+        if (!this.userId) {
+            console.log('No user ID available');
             return;
         }
         
         try {
-            const database = firebase.database();
-            const userRef = database.ref(`users/${this.userId}`);
+            // Use API server instead of direct Firebase access
+            // This bypasses Firebase security rules
+            const apiUrl = 'http://localhost:5000/api/coins/' + this.userId;
             
-            // Listen for changes in real-time
-            userRef.on('value', (snapshot) => {
-                const userData = snapshot.val();
-                if (userData && userData.coins !== undefined) {
-                    this.coins = parseInt(userData.coins, 10) || 0;
-                    console.log(`Loaded coins for user ${this.userId}: ${this.coins}`);
-                } else {
-                    this.coins = 0;
-                    console.log(`No coins data for user ${this.userId}, setting to 0`);
+            console.log(`Loading coins from API: ${apiUrl}`);
+            
+            const response = await fetch(apiUrl);
+            if (response.ok) {
+                const data = await response.json();
+                this.coins = parseInt(data.coins, 10) || 0;
+                console.log(`Loaded coins for user ${this.userId}: ${this.coins}`);
+                
+                // Set up polling to update coins periodically
+                if (!this.coinsPollInterval) {
+                    this.coinsPollInterval = setInterval(() => {
+                        this.loadCoinsFromFirebase();
+                    }, 5000); // Update every 5 seconds
                 }
-            }, (error) => {
-                console.error('Error loading coins from Firebase:', error);
+            } else {
+                console.error('Error loading coins from API:', response.status);
                 this.coins = 0;
-            });
+            }
         } catch (error) {
             console.error('Error in loadCoinsFromFirebase:', error);
-            this.coins = 0;
+            // Fallback: try direct Firebase access if API fails
+            if (this.firebaseInitialized) {
+                try {
+                    const database = firebase.database();
+                    const coinsRef = database.ref(`users/${this.userId}/coins`);
+                    coinsRef.once('value', (snapshot) => {
+                        const coins = snapshot.val();
+                        this.coins = coins !== null ? parseInt(coins, 10) || 0 : 0;
+                        console.log(`Loaded coins from Firebase fallback: ${this.coins}`);
+                    });
+                } catch (fbError) {
+                    console.error('Firebase fallback also failed:', fbError);
+                    this.coins = 0;
+                }
+            } else {
+                this.coins = 0;
+            }
         }
     }
 
@@ -2277,10 +2299,10 @@ class Game {
             this.ctx.fillText('You need coins to play!', canvasWidth / 2, startY + btnHeight + 25);
         } else {
             // Normal button style (green)
-            this.ctx.fillStyle = '#27AE60';
+        this.ctx.fillStyle = '#27AE60';
             this.ctx.fillRect(btnX, startY + 5, btnWidth, btnHeight);
-            this.ctx.fillStyle = '#FFFFFF';
-            this.ctx.font = 'bold 18px monospace';
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.font = 'bold 18px monospace';
             this.ctx.fillText('START GAME', canvasWidth / 2, startY + 30);
         }
         
@@ -2289,7 +2311,7 @@ class Game {
             this.ctx.fillStyle = '#888888';
         this.ctx.textAlign = 'left';
         
-        const textY = startY + btnHeight + 30;
+        const textY = startY + btnHeight + 55; // Moved down by 25px (was 30, now 55)
         const textLine1 = 'From the creators of ';
         const linkText = 'arenapsgm.ru';
         const textLine2 = ' 2026';
