@@ -290,6 +290,9 @@ class Player {
         this.jumpCharging = false;
         this.jumpChargePower = 0; // 0 to 1, where 1 is max jump
         this.jumpChargeDirection = 1; // 1 for increasing, -1 for decreasing
+        this.doubleJumpUsed = false; // Whether double jump was used in current jump
+        this.doubleJumpCharging = false; // Whether double jump is being charged
+        this.doubleJumpChargePower = 0; // Charge power for double jump
         this.loadImage();
     }
 
@@ -347,6 +350,9 @@ class Player {
             this.jumpCharging = false;
             this.jumpChargePower = 0;
             this.jumpChargeDirection = 1;
+            this.doubleJumpUsed = false; // Reset double jump for new jump
+            this.doubleJumpCharging = false;
+            this.doubleJumpChargePower = 0;
         } else if (this.jumpCharging) {
             // Cancel charging if not on ground
             this.jumpCharging = false;
@@ -354,10 +360,47 @@ class Player {
             this.jumpChargeDirection = 1;
         }
     }
+    
+    startDoubleJumpCharge() {
+        // Can only charge double jump if in air and haven't used it yet
+        if (this.isJumping && !this.onGround && !this.doubleJumpUsed) {
+            this.doubleJumpCharging = true;
+            this.doubleJumpChargePower = 0;
+        }
+    }
+    
+    updateDoubleJumpCharge() {
+        if (this.doubleJumpCharging && this.isJumping && !this.onGround && !this.doubleJumpUsed) {
+            // Charge power increases
+            this.doubleJumpChargePower += CONFIG.JUMP_CHARGE_RATE;
+            if (this.doubleJumpChargePower >= 1) {
+                this.doubleJumpChargePower = 1;
+            }
+        }
+    }
+    
+    releaseDoubleJump() {
+        // Can only use double jump if in air, haven't used it, and available
+        if (this.isJumping && !this.onGround && !this.doubleJumpUsed) {
+            const jumpPower = Math.max(0, Math.min(1, this.doubleJumpChargePower));
+            const jumpStrength = CONFIG.JUMP_STRENGTH_MIN + 
+                                (CONFIG.JUMP_STRENGTH_MAX - CONFIG.JUMP_STRENGTH_MIN) * jumpPower;
+            
+            this.velocityY = jumpStrength; // Jump upward
+            this.doubleJumpUsed = true; // Mark as used
+            this.doubleJumpCharging = false;
+            this.doubleJumpChargePower = 0;
+            return true; // Return true to indicate double jump was used
+        }
+        return false;
+    }
 
     update() {
         // Update jump charge if charging (only reset if not charging)
         this.updateJumpCharge();
+        
+        // Update double jump charge if charging
+        this.updateDoubleJumpCharge();
         
         // Apply gravity
         this.velocityY += CONFIG.GRAVITY;
@@ -369,6 +412,10 @@ class Player {
             this.velocityY = 0;
             this.isJumping = false;
             this.onGround = true;
+            // Reset double jump when landing
+            this.doubleJumpUsed = false;
+            this.doubleJumpCharging = false;
+            this.doubleJumpChargePower = 0;
             // Don't reset charging here - let it continue if space is still pressed
             // Only reset if player is not charging
             if (!this.jumpCharging) {
@@ -549,6 +596,9 @@ class Game {
         this.authButtonBounds = null; // Button bounds for auth screen
         this.coinsDeductionMessage = null; // Message about coins deduction
         this.coinsDeductionMessageTime = 0; // Time when message was shown
+        this.doubleJumpAvailable = true; // Double jump availability
+        this.doubleJumpCooldownEndTime = 0; // When double jump will be available again (45 seconds after use)
+        this.doubleJumpCharging = false; // Whether double jump is being charged
         this.initFirebase();
         
         // Wheel of Fortune
@@ -1719,7 +1769,17 @@ class Game {
         console.log('🖱️ handleJumpStart called, state:', this.state, 'coins:', this.coins);
         
         if (this.state === GAME_STATE.PLAYING && this.player && !this.demoMode) {
-            this.player.startJumpCharge();
+            // Check if player is on ground (normal jump) or in air (double jump)
+            if (this.player.onGround && !this.player.isJumping) {
+                this.player.startJumpCharge();
+            } else if (this.player.isJumping && !this.player.onGround && !this.player.doubleJumpUsed) {
+                // Check if double jump is available (cooldown passed)
+                const now = Date.now();
+                if (now >= this.doubleJumpCooldownEndTime) {
+                    this.player.startDoubleJumpCharge();
+                    this.doubleJumpCharging = true;
+                }
+            }
         } else if (this.state === GAME_STATE.PLAYING && this.demoMode) {
             // Stop demo mode on click/tap
             this.stopDemo();
@@ -1939,7 +1999,24 @@ class Game {
 
     handleJumpRelease() {
         if (this.state === GAME_STATE.PLAYING && this.player) {
-            this.player.releaseJump();
+            // Try normal jump first
+            if (this.player.onGround && !this.player.isJumping) {
+                this.player.releaseJump();
+            } else if (this.player.isJumping && !this.player.onGround && !this.player.doubleJumpUsed) {
+                // Try double jump if available
+                const now = Date.now();
+                if (now >= this.doubleJumpCooldownEndTime) {
+                    const used = this.player.releaseDoubleJump();
+                    if (used) {
+                        // Start cooldown timer (45 seconds)
+                        this.doubleJumpCooldownEndTime = now + 45000;
+                        this.doubleJumpAvailable = false;
+                        console.log('🔄 Double jump used! Cooldown: 45 seconds');
+                    }
+                }
+            }
+            // Reset charging flags
+            this.doubleJumpCharging = false;
         }
     }
 
@@ -2716,6 +2793,50 @@ class Game {
             this.drawHeart(this.ctx, heartX, livesY - heartSize / 2, heartSize);
         }
         
+        // Double jump battery indicator (under Lives)
+        const batteryY = livesY + 20; // 20px below Lives text
+        const batteryStartX = edgeOffset; // Start from "Lives:" text
+        const batteryEndX = heartsStartX + (2 * heartSpacing) + heartSize; // End at third heart
+        const batteryWidth = batteryEndX - batteryStartX;
+        const batteryHeight = 12;
+        
+        // Calculate cooldown progress (0 to 1)
+        const now = Date.now();
+        const cooldownDuration = 45000; // 45 seconds
+        let cooldownProgress = 0;
+        if (this.doubleJumpCooldownEndTime > 0 && now < this.doubleJumpCooldownEndTime) {
+            const elapsed = now - (this.doubleJumpCooldownEndTime - cooldownDuration);
+            cooldownProgress = Math.min(1, elapsed / cooldownDuration);
+        } else if (now >= this.doubleJumpCooldownEndTime) {
+            cooldownProgress = 1;
+            this.doubleJumpAvailable = true;
+        }
+        
+        // Draw battery outline
+        this.ctx.save();
+        this.ctx.strokeStyle = '#FFFFFF';
+        this.ctx.lineWidth = 2;
+        // Battery body
+        this.ctx.strokeRect(batteryStartX, batteryY, batteryWidth, batteryHeight);
+        // Battery positive terminal (right side)
+        const terminalWidth = 4;
+        const terminalHeight = 6;
+        this.ctx.fillRect(batteryEndX, batteryY + (batteryHeight - terminalHeight) / 2, terminalWidth, terminalHeight);
+        this.ctx.strokeRect(batteryEndX, batteryY + (batteryHeight - terminalHeight) / 2, terminalWidth, terminalHeight);
+        
+        // Draw battery fill with color gradient (red to green)
+        if (cooldownProgress > 0) {
+            const fillWidth = batteryWidth * cooldownProgress;
+            // Color interpolation: red (0) to green (1)
+            const red = Math.floor(255 * (1 - cooldownProgress));
+            const green = Math.floor(255 * cooldownProgress);
+            const batteryColor = `rgb(${red}, ${green}, 0)`;
+            
+            this.ctx.fillStyle = batteryColor;
+            this.ctx.fillRect(batteryStartX + 2, batteryY + 2, fillWidth - 4, batteryHeight - 4);
+        }
+        this.ctx.restore();
+        
         // Demo mode indicator
         if (this.demoMode) {
             this.ctx.fillStyle = '#FFD700';
@@ -2805,8 +2926,8 @@ class Game {
 
         // Points display in menu (top right, moved down by 20px and right by 25px)
         this.ctx.font = 'bold 16px monospace';
-        // Points and Coins aligned to right edge, numbers aligned vertically
-        const rightAlignX = canvasWidth - edgeOffset + 25; // Right edge position
+        // Points and Coins aligned to right edge with 40px offset, numbers aligned vertically
+        const rightAlignX = canvasWidth - 40; // 40px offset from right edge
         
         // Points display - right aligned
         this.ctx.textAlign = 'right';
